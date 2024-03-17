@@ -568,12 +568,9 @@ impl Endpoint {
         &mut self,
         header: &PlainInitialHeader,
     ) -> Result<(), TransportError> {
+        self.check_connection_limit()?;
+
         let server_config = self.server_config.as_ref().unwrap();
-        if self.connections.len() >= server_config.concurrent_connections as usize || self.is_full()
-        {
-            debug!("refusing connection");
-            return Err(TransportError::CONNECTION_REFUSED(""));
-        }
 
         // RFC9000 §7.2 dictates that initial (client-chosen) destination CIDs must be at least 8
         // bytes. If this is a Retry packet, then the length must instead match our usual CID
@@ -640,6 +637,16 @@ impl Endpoint {
         self.index.insert_conn(addresses, loc_cid, ch);
 
         conn
+    }
+
+    fn check_connection_limit(&mut self) -> Result<(), TransportError> {
+        let server_config = self.server_config.as_ref().unwrap();
+        if self.connections.len() < server_config.concurrent_connections as usize && !self.is_full()
+        {
+            return Ok(());
+        }
+        debug!("refusing connection");
+        Err(TransportError::CONNECTION_REFUSED(""))
     }
 
     fn initial_close(
