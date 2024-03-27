@@ -483,21 +483,9 @@ impl State {
                 break Ok(true);
             }
 
-            match self
-                .socket
-                .poll_send(cx, self.transmit_state.outgoing.as_slices().0)
-            {
+            match self.socket.poll_send(cx, self.transmit_state.transmits()) {
                 Poll::Ready(Ok(n)) => {
-                    let contents_len: usize = self
-                        .transmit_state
-                        .outgoing
-                        .drain(..n)
-                        .map(|t| t.contents.len())
-                        .sum();
-                    self.transmit_state.contents_len = self
-                        .transmit_state
-                        .contents_len
-                        .saturating_sub(contents_len);
+                    self.transmit_state.dequeue(n);
                     // We count transmits instead of `poll_send` calls since the cost
                     // of a `sendmmsg` still linearly increases with number of packets.
                     self.send_limiter.record_work(n);
@@ -537,14 +525,7 @@ impl State {
                                 .send(ConnectionEvent::Proto(event));
                         }
                     }
-                    Transmit(t, buf) => {
-                        let contents_len = buf.len();
-                        self.transmit_state.outgoing.push_back(udp_transmit(t, buf));
-                        self.transmit_state.contents_len = self
-                            .transmit_state
-                            .contents_len
-                            .saturating_add(contents_len);
-                    }
+                    Transmit(t, buf) => self.transmit_state.enqueue(t, buf),
                 },
                 Poll::Ready(None) => unreachable!("EndpointInner owns one sender"),
                 Poll::Pending => {
@@ -580,6 +561,22 @@ impl TransmitState {
             response_buffer.split_to(contents_len).freeze(),
         ));
         self.contents_len = self.contents_len.saturating_add(contents_len);
+    }
+
+    fn enqueue(&mut self, t: proto::Transmit, buf: Bytes) {
+        let contents_len = buf.len();
+        self.outgoing.push_back(udp_transmit(t, buf));
+        self.contents_len = self.contents_len.saturating_add(contents_len);
+    }
+
+    fn dequeue(&mut self, sent: usize) {
+        self.contents_len = self
+            .contents_len
+            .saturating_sub(self.outgoing.drain(..sent).map(|t| t.contents.len()).sum());
+    }
+
+    fn transmits(&self) -> &[udp::Transmit] {
+        self.outgoing.as_slices().0
     }
 }
 
