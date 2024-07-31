@@ -65,6 +65,24 @@ impl UdpSocketState {
     ) -> io::Result<usize> {
         recv(socket.0, bufs, meta)
     }
+
+    pub fn send_proxy(
+        &self,
+        socket: UdpSockRef<'_>,
+        state: &UdpState,
+        transmits: &[Transmit],
+    ) -> Result<usize, io::Error> {
+        send_proxy(state, socket.0, &self.last_send_error, transmits)
+    }
+
+    pub fn recv_proxy(
+        &self,
+        socket: UdpSockRef<'_>,
+        bufs: &mut [IoSliceMut<'_>],
+        meta: &mut [RecvMeta],
+    ) -> io::Result<usize> {
+        recv_proxy(socket.0, bufs, meta)
+    }
 }
 
 impl Default for UdpSocketState {
