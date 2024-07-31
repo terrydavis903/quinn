@@ -12,6 +12,8 @@ use std::{
     },
     time::Instant,
 };
+use byteorder::{ReadBytesExt, WriteBytesExt, BigEndian};
+
 
 use socket2::SockRef;
 
@@ -309,7 +311,7 @@ fn send_proxy(
                 io::ErrorKind::Interrupted => {
                     // Retry the transmission
                 }
-                io::ErrorKind::WouldBlock if sent != 0 => return Ok(sent),
+                io::ErrorKind::WouldBlock if sent_msg != 0 => return Ok(sent_msg),
                 io::ErrorKind::WouldBlock => return Err(e),
                 _ => {
                     // Other errors are ignored, since they will ususally be handled
@@ -318,8 +320,8 @@ fn send_proxy(
                     //   Those are not fatal errors, since the
                     //   configuration can be dynamically changed.
                     // - Destination unreachable errors have been observed for other
-                    log_sendmsg_error(last_send_error, e, &transmits[sent]);
-                    sent += 1;
+                    log_sendmsg_error(last_send_error, e, &transmits[sent_msg]);
+                    sent_msg += 1;
                 }
             }
         }else{
