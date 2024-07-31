@@ -286,7 +286,7 @@ fn send_proxy(
         match addr_raw {
             SocketAddr::V4(v4_addr) => {
                 fwd_hdr.write_u8(1).unwrap();
-                fwd_hdr.write_u32::<BigEndian>(v4_addr.ip().into()).unwrap();
+                fwd_hdr.write_u32::<BigEndian>((*v4_addr.ip()).into()).unwrap();
                 fwd_hdr.write_u16::<BigEndian>(v4_addr.port()).unwrap();
             },
             _ => {
