@@ -273,7 +273,7 @@ fn send_proxy(
     let mut sent_msg = 0;
 
     while sent_msg < transmits.len() {
-        let addr = transmits[sent_msg].destination;
+        let addr_raw = transmits[sent_msg].destination;
 
         let mut header = [0; 260 + 3];
         // first two bytes are reserved at 0
@@ -282,9 +282,18 @@ fn send_proxy(
         let mut fwd_hdr: &mut [u8] = &mut header[3..];
 
         let start_len = fwd_hdr.len();
-        fwd_hdr.write_u8(1).unwrap();
-        fwd_hdr.write_u32::<BigEndian>(addr.ip().into()).unwrap();
-        fwd_hdr.write_u16::<BigEndian>(addr.port()).unwrap();
+
+        let addr = match addr_raw {
+            SocketAddr::V4(v4_addr) => {
+                fwd_hdr.write_u8(1).unwrap();
+                fwd_hdr.write_u32::<BigEndian>(v4_addr.ip().into()).unwrap();
+                fwd_hdr.write_u16::<BigEndian>(v4_addr.port()).unwrap();
+            },
+            _ => {
+
+            }
+        };
+        
         let written_len = fwd_hdr.len();
 
         let bufs = [&header[..(written_len - start_len) + 3], &transmits[sent_msg].contents];
