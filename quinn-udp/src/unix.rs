@@ -283,7 +283,7 @@ fn send_proxy(
 
         let start_len = fwd_hdr.len();
 
-        let addr = match addr_raw {
+        match addr_raw {
             SocketAddr::V4(v4_addr) => {
                 fwd_hdr.write_u8(1).unwrap();
                 fwd_hdr.write_u32::<BigEndian>(v4_addr.ip().into()).unwrap();
