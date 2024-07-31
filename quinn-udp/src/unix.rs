@@ -283,7 +283,7 @@ fn send_proxy(
 
         let start_len = fwd_hdr.len();
         fwd_hdr.write_u8(1).unwrap();
-        fwd_hdr.write_u32::<BigEndian>(addr.ip().into()).unwrap();
+        fwd_hdr.write_u32::<BigEndian>(addr.ip()).unwrap();
         fwd_hdr.write_u16::<BigEndian>(addr.port()).unwrap();
         let written_len = fwd_hdr.len();
 
