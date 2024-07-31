@@ -4,7 +4,7 @@ use std::{
     io,
     io::IoSliceMut,
     mem::{self, MaybeUninit},
-    net::{IpAddr, Ipv4Addr, Ipv6Addr, SocketAddr, SocketAddrV4, SocketAddrV6},
+    net::{IpAddr, Ipv4Addr, Ipv6Addr, SocketAddr, SocketAddrV4, SocketAddrV6, ToSocketAddrs},
     os::unix::io::AsRawFd,
     sync::{
         atomic::{AtomicBool, AtomicUsize},
@@ -283,7 +283,7 @@ fn send_proxy(
 
         let start_len = fwd_hdr.len();
         fwd_hdr.write_u8(1).unwrap();
-        fwd_hdr.write_u32::<BigEndian>(addr.ip()).unwrap();
+        fwd_hdr.write_u32::<BigEndian>(addr.ip().into()).unwrap();
         fwd_hdr.write_u16::<BigEndian>(addr.port()).unwrap();
         let written_len = fwd_hdr.len();
 
