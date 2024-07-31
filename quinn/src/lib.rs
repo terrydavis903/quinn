@@ -54,6 +54,7 @@ macro_rules! ready {
 
 mod connection;
 mod endpoint;
+mod endpoint_proxy;
 mod mutex;
 mod recv_stream;
 mod runtime;
@@ -71,7 +72,8 @@ pub use crate::connection::{
     AcceptBi, AcceptUni, Connecting, Connection, OpenBi, OpenUni, ReadDatagram, SendDatagramError,
     UnknownStream, ZeroRttAccepted,
 };
-pub use crate::endpoint::{Accept, Endpoint};
+pub use crate::endpoint_proxy::EndpointProxy;
+pub use crate::endpoint::Endpoint;
 pub use crate::recv_stream::{ReadError, ReadExactError, ReadToEndError, RecvStream};
 #[cfg(feature = "runtime-async-std")]
 pub use crate::runtime::AsyncStdRuntime;

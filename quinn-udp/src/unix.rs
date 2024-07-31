@@ -259,6 +259,76 @@ fn send(
     }
 }
 
+#[cfg(not(any(target_os = "macos", target_os = "ios")))]
+fn send_proxy(
+    #[allow(unused_variables)] // only used on Linux
+    state: &UdpState,
+    io: SockRef<'_>,
+    last_send_error: &Mutex<Instant>,
+    transmits: &[Transmit],
+) -> io::Result<usize> {
+    
+    let mut sent_msg = 0;
+
+    while sent_msg < transmits.len() {
+        let addr = transmits[sent_msg].destination;
+
+        let mut header = [0; 260 + 3];
+        // first two bytes are reserved at 0
+        // third byte is the fragment id at 0
+
+        let mut fwd_hdr: &mut [u8] = &mut header[3..];
+
+        let start_len = fwd_hdr.len();
+        fwd_hdr.write_u8(1).unwrap();
+        fwd_hdr.write_u32::<BigEndian>((*addr.ip()).into()).unwrap();
+        fwd_hdr.write_u16::<BigEndian>(addr.port()).unwrap();
+        let written_len = fwd_hdr.len();
+
+        let bufs = [&header[..(written_len - start_len) + 3], &transmits[sent_msg].contents];
+
+
+        let r = unsafe {
+            let iovecs = [
+                libc::iovec {
+                    iov_base: bufs[0].as_ptr() as *const _ as *mut _,
+                    iov_len: bufs[0].len(),
+                },
+                libc::iovec {
+                    iov_base: bufs[1].as_ptr() as *const _ as *mut _,
+                    iov_len: bufs[1].len(),
+                },
+            ];
+            libc::writev(io.as_raw_fd(), iovecs.as_ptr(), 2)
+        };
+
+
+        if r == -1 {
+            let e = io::Error::last_os_error();
+            match e.kind() {
+                io::ErrorKind::Interrupted => {
+                    // Retry the transmission
+                }
+                io::ErrorKind::WouldBlock if sent != 0 => return Ok(sent),
+                io::ErrorKind::WouldBlock => return Err(e),
+                _ => {
+                    // Other errors are ignored, since they will ususally be handled
+                    // by higher level retransmits and timeouts.
+                    // - PermissionDenied errors have been observed due to iptable rules.
+                    //   Those are not fatal errors, since the
+                    //   configuration can be dynamically changed.
+                    // - Destination unreachable errors have been observed for other
+                    log_sendmsg_error(last_send_error, e, &transmits[sent]);
+                    sent += 1;
+                }
+            }
+        }else{
+            sent_msg += 1;
+        }
+    }
+    return Ok(sent_msg as usize);
+}
+
 #[cfg(any(target_os = "macos", target_os = "ios"))]
 fn send(
     state: &UdpState,
@@ -273,6 +343,7 @@ fn send(
 
     while sent < transmits.len() {
         let addr = socket2::SockAddr::from(transmits[sent].destination);
+        // so using writev with socks5 tunnel means we dont need msghdr to contain address. i think we literally just send the bytes?
         prepare_msg(
             &transmits[sent],
             &addr,
@@ -412,6 +483,79 @@ fn recv(io: SockRef<'_>, bufs: &mut [IoSliceMut<'_>], meta: &mut [RecvMeta]) -> 
     }
     Ok(msg_count as usize)
 }
+
+#[cfg(not(any(target_os = "macos", target_os = "ios")))]
+fn recv_proxy(io: SockRef<'_>, bufs: &mut [IoSliceMut<'_>], meta: &mut [RecvMeta]) -> io::Result<usize> {
+    
+    let max_msg_count = bufs.len().min(BATCH_SIZE);
+    let mut msg_count = 0;
+    while msg_count < max_msg_count {
+        let mut header = [0; 260 + 3];
+        let buf = &mut bufs[msg_count];
+
+        let loop_buf = [&mut header, buf];
+        let r = unsafe {
+            let mut iovecs = [
+                libc::iovec {
+                    iov_base: loop_buf[0].as_mut_ptr() as *mut _,
+                    iov_len: loop_buf[0].len(),
+                },
+                libc::iovec {
+                    iov_base: loop_buf[1].as_mut_ptr() as *mut _,
+                    iov_len: loop_buf[1].len(),
+                },
+            ];
+            libc::readv(io.as_raw_fd(), iovecs.as_mut_ptr(), 2)
+        };
+
+        if r == -1 {
+            let e = io::Error::last_os_error();
+            if e.kind() == io::ErrorKind::Interrupted {
+                continue;
+            }
+            return Err(e);
+        }
+
+        let len = r as usize;
+
+        let overflow = len.saturating_sub(header.len());
+
+        let header_len = cmp::min(header.len(), len);
+        let mut header = &mut &header[..header_len];
+
+        if header.read_u16::<BigEndian>()? != 0 {
+            return Err(io::Error::new(io::ErrorKind::InvalidData, "invalid reserved bytes"));
+        }
+        if header.read_u8()? != 0 {
+            return Err(io::Error::new(io::ErrorKind::InvalidData, "invalid fragment id"));
+        }
+
+        let header_buf = &mut header;
+        let ip = Ipv4Addr::from(header_buf.read_u32::<BigEndian>()?);
+        let port = header_buf.read_u16::<BigEndian>()?;
+        let addr = SocketAddr::V4(SocketAddrV4::new(ip, port));
+
+        unsafe {
+            ptr::copy(buf.as_ptr(), buf.as_mut_ptr().offset(header.len() as isize), overflow);
+        }
+        buf[..header.len()].copy_from_slice(header);
+
+
+
+        meta[msg_count] = RecvMeta{
+            addr,
+            len: header.len() + overflow,
+            stride: header.len() + overflow,
+            ecn: None,
+            dst_ip: None,
+        };
+
+        msg_count += 1;
+    };
+    
+    Ok(msg_count as usize)
+}
+
 
 #[cfg(any(target_os = "macos", target_os = "ios"))]
 fn recv(io: SockRef<'_>, bufs: &mut [IoSliceMut<'_>], meta: &mut [RecvMeta]) -> io::Result<usize> {

@@ -35,6 +35,7 @@ impl Runtime for TokioRuntime {
     }
 }
 
+
 impl AsyncTimer for Sleep {
     fn reset(self: Pin<&mut Self>, t: Instant) {
         Self::reset(self, t.into())
@@ -51,6 +52,41 @@ struct UdpSocket {
 }
 
 impl AsyncUdpSocket for UdpSocket {
+    fn proxy_send(
+        &self,
+        state: &udp::UdpState,
+        cx: &mut Context,
+        transmits: &[udp::Transmit],
+    ) -> Poll<io::Result<usize>> {
+        let inner = &self.inner;
+        let io = &self.io;
+        loop {
+            ready!(io.poll_send_ready(cx))?;
+            if let Ok(res) = io.try_io(Interest::WRITABLE, || {
+                inner.send_proxy(io.into(), state, transmits)
+            }) {
+                return Poll::Ready(Ok(res));
+            }
+        }
+    }
+
+    fn proxy_recv(
+        &self,
+        cx: &mut Context,
+        bufs: &mut [std::io::IoSliceMut<'_>],
+        meta: &mut [udp::RecvMeta],
+    ) -> Poll<io::Result<usize>> {
+        loop {
+            ready!(self.io.poll_recv_ready(cx))?;
+            
+            if let Ok(res) = self.io.try_io(Interest::READABLE, || {
+                self.inner.recv_proxy((&self.io).into(), bufs, meta)
+            }) {
+                return Poll::Ready(Ok(res));
+            }
+        }
+    }
+
     fn poll_send(
         &self,
         state: &udp::UdpState,
@@ -77,6 +113,7 @@ impl AsyncUdpSocket for UdpSocket {
     ) -> Poll<io::Result<usize>> {
         loop {
             ready!(self.io.poll_recv_ready(cx))?;
+            
             if let Ok(res) = self.io.try_io(Interest::READABLE, || {
                 self.inner.recv((&self.io).into(), bufs, meta)
             }) {

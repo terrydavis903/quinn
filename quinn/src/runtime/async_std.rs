@@ -8,7 +8,7 @@ use std::{
 
 use async_io::{Async, Timer};
 
-use super::{AsyncTimer, AsyncUdpSocket, Runtime};
+use super::{AsyncTimer, AsyncUdpSocket, Runtime, ProxyRuntime, ProxyAsyncUdpSocket};
 
 /// A Quinn runtime for async-std
 #[derive(Debug)]
@@ -47,8 +47,36 @@ struct UdpSocket {
     io: Async<std::net::UdpSocket>,
     inner: udp::UdpSocketState,
 }
-
 impl AsyncUdpSocket for UdpSocket {
+    fn proxy_send(
+        &self,
+        state: &udp::UdpState,
+        cx: &mut Context,
+        transmits: &[udp::Transmit],
+    ) -> Poll<io::Result<usize>> {
+        loop {
+            ready!(self.io.poll_writable(cx))?;
+            if let Ok(res) = self.inner.send_proxy((&self.io).into(), state, transmits) {
+                return Poll::Ready(Ok(res));
+            }
+        }
+    }
+
+    fn proxy_recv(
+        &self,
+        cx: &mut Context,
+        bufs: &mut [io::IoSliceMut<'_>],
+        meta: &mut [udp::RecvMeta],
+    ) -> Poll<io::Result<usize>> {
+        loop {
+            ready!(self.io.poll_readable(cx))?;
+            
+            if let Ok(res) = self.inner.recv_proxy((&self.io).into(), bufs, meta) {
+                return Poll::Ready(Ok(res));
+            }
+        }
+    }
+
     fn poll_send(
         &self,
         state: &udp::UdpState,
@@ -71,6 +99,7 @@ impl AsyncUdpSocket for UdpSocket {
     ) -> Poll<io::Result<usize>> {
         loop {
             ready!(self.io.poll_readable(cx))?;
+            
             if let Ok(res) = self.inner.recv((&self.io).into(), bufs, meta) {
                 return Poll::Ready(Ok(res));
             }

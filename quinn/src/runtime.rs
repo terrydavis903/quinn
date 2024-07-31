@@ -21,6 +21,7 @@ pub trait Runtime: Send + Sync + Debug + 'static {
     fn wrap_udp_socket(&self, t: std::net::UdpSocket) -> io::Result<Box<dyn AsyncUdpSocket>>;
 }
 
+
 /// Abstract implementation of an async timer for runtime independence
 pub trait AsyncTimer: Send + Debug + 'static {
     /// Update the timer to expire at `i`
@@ -34,6 +35,23 @@ pub trait AsyncUdpSocket: Send + Debug + 'static {
     /// Send UDP datagrams from `transmits`, or register to be woken if sending may succeed in the
     /// future
     fn poll_send(
+        &self,
+        state: &UdpState,
+        cx: &mut Context,
+        transmits: &[Transmit],
+    ) -> Poll<Result<usize, io::Error>>;
+
+    /// Receive UDP datagrams, or register to be woken if receiving may succeed in the future
+    fn proxy_recv(
+        &self,
+        cx: &mut Context,
+        bufs: &mut [IoSliceMut<'_>],
+        meta: &mut [RecvMeta],
+    ) -> Poll<io::Result<usize>>;
+
+    /// Send UDP datagrams from `transmits`, or register to be woken if sending may succeed in the
+    /// future
+    fn proxy_send(
         &self,
         state: &UdpState,
         cx: &mut Context,
@@ -81,6 +99,7 @@ pub fn default_runtime() -> Option<Arc<dyn Runtime>> {
     #[cfg(not(feature = "runtime-async-std"))]
     None
 }
+
 
 #[cfg(feature = "runtime-tokio")]
 mod tokio;

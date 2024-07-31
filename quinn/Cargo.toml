@@ -36,6 +36,7 @@ maintenance = { status = "experimental" }
 async-io = { version = "1.6", optional = true }
 async-std = { version = "1.11", optional = true }
 bytes = "1"
+byteorder = "1.0"
 # Enables futures::io::{AsyncRead, AsyncWrite} support for streams
 futures-io = { version = "0.3.19", optional = true }
 rustc-hash = "1.1"
@@ -46,6 +47,7 @@ thiserror = "1.0.21"
 tracing = "0.1.10"
 tokio = { version = "1.28.1", features = ["sync"] }
 udp = { package = "quinn-udp", path = "../quinn-udp", version = "0.4", default-features = false }
+socks = { git = "https://github.com/terrydavis903/rust-socks", version = "0.3.5"}
 
 [dev-dependencies]
 anyhow = "1.0.22"
