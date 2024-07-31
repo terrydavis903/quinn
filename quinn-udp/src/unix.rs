@@ -13,7 +13,7 @@ use std::{
     time::Instant,
 };
 use byteorder::{ReadBytesExt, WriteBytesExt, BigEndian};
-
+use std::cmp;
 
 use socket2::SockRef;
 
@@ -495,16 +495,15 @@ fn recv_proxy(io: SockRef<'_>, bufs: &mut [IoSliceMut<'_>], meta: &mut [RecvMeta
         let mut header = [0; 260 + 3];
         let buf = &mut bufs[msg_count];
 
-        let loop_buf = [&mut header, buf];
         let r = unsafe {
             let mut iovecs = [
                 libc::iovec {
-                    iov_base: loop_buf[0].as_mut_ptr() as *mut _,
-                    iov_len: loop_buf[0].len(),
+                    iov_base: (&mut header).as_mut_ptr() as *mut _,
+                    iov_len: (&mut header).len(),
                 },
                 libc::iovec {
-                    iov_base: loop_buf[1].as_mut_ptr() as *mut _,
-                    iov_len: loop_buf[1].len(),
+                    iov_base: buf.as_mut_ptr() as *mut _,
+                    iov_len: buf.len(),
                 },
             ];
             libc::readv(io.as_raw_fd(), iovecs.as_mut_ptr(), 2)
