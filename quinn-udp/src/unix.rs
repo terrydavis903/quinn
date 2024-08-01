@@ -317,7 +317,7 @@ fn send_proxy(
         info!("start len: {}", start_len);
         info!("written len: {}", written_len);
 
-        let bufs = [&header[..((written_len - start_len) + 3) as usize], &transmits[sent_msg].contents];
+        let bufs = [&header[..((start_len - written_len) + 3) as usize], &transmits[sent_msg].contents];
 
 
         let r = unsafe {
