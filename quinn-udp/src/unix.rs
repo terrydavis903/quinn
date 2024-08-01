@@ -288,7 +288,7 @@ fn send_proxy(
     last_send_error: &Mutex<Instant>,
     transmits: &[Transmit],
 ) -> io::Result<usize> {
-    
+    info!("sending message from unix!");
     let mut sent_msg = 0;
 
     while sent_msg < transmits.len() {
