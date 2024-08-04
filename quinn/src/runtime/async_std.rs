@@ -56,6 +56,7 @@ impl AsyncUdpSocket for UdpSocket {
     ) -> Poll<io::Result<usize>> {
         loop {
             ready!(self.io.poll_writable(cx))?;
+            
             if let Ok(res) = self.inner.send_proxy((&self.io).into(), state, transmits) {
                 return Poll::Ready(Ok(res));
             }

@@ -1,11 +1,8 @@
 use std::{
-    future::Future,
-    io,
-    pin::Pin,
-    task::{Context, Poll},
-    time::Instant,
+    future::Future, io, net::SocketAddr, pin::Pin, task::{Context, Poll}, time::Instant
 };
 
+use byteorder::{BigEndian, WriteBytesExt};
 use tokio::{
     io::Interest,
     time::{sleep_until, Sleep},
@@ -63,6 +60,33 @@ impl AsyncUdpSocket for UdpSocket {
         loop {
             ready!(io.poll_send_ready(cx))?;
             if let Ok(res) = io.try_io(Interest::WRITABLE, || {
+                // for transmit in transmits{
+
+                //     let mut header = [0; 260 + 3];
+                //     let mut fwd_hdr: &mut [u8] = &mut header[3..];
+
+                //     let start_len = fwd_hdr.len();
+
+                //     match transmit.destination {
+                //         SocketAddr::V4(v4_addr) => {
+                //             fwd_hdr.write_u8(1).unwrap();
+                //             fwd_hdr.write_u32::<BigEndian>((*v4_addr.ip()).into()).unwrap();
+                //             fwd_hdr.write_u16::<BigEndian>(v4_addr.port()).unwrap();
+                //         },
+                //         _ => {
+
+                //         }
+                //     };
+
+                //     let written_len = fwd_hdr.len();
+
+                //     let header_len = ((start_len - written_len) + 3) as usize;
+                //     let mut write_buffer = vec![];
+                //     write_buffer.extend_from_slice(&header[..header_len]);
+                //     write_buffer.extend_from_slice(&transmit.contents);
+
+                //     self.io.try_send(&write_buffer).unwrap();
+                // }
                 inner.send_proxy(io.into(), state, transmits)
             }) {
                 return Poll::Ready(Ok(res));
