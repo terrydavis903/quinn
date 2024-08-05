@@ -3,7 +3,7 @@ use std::{
 };
 
 use byteorder::{BigEndian, WriteBytesExt};
-use log::debug;
+use log::{debug, info};
 use tokio::{
     io::Interest,
     time::{sleep_until, Sleep},
@@ -103,18 +103,18 @@ impl AsyncUdpSocket for UdpSocket {
     ) -> Poll<io::Result<usize>> {
         loop {
             ready!(self.io.poll_recv_ready(cx))?;
-            debug!("tokio proxy rec");
+            info!("tokio proxy rec");
             
             let io_res = self.io.try_io(Interest::READABLE, || {
                 self.inner.recv_proxy((&self.io).into(), bufs, meta)
             });
             
             if let Ok(res) = io_res{
-                debug!("async tokio proxy rec read: {} messages", res);
+                info!("async tokio proxy rec read: {} messages", res);
                 return Poll::Ready(Ok(res));
             }else
             if let Err(res_err) = io_res{
-                debug!("async tokio proxy err'd with: {}", res_err);
+                info!("async tokio proxy err'd with: {}", res_err);
             }
         }
     }

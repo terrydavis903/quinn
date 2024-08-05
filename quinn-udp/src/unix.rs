@@ -560,9 +560,11 @@ fn recv_proxy(io: SockRef<'_>, bufs: &mut [IoSliceMut<'_>], meta: &mut [RecvMeta
         let mut header = &mut &header[..header_len];
 
         if header.read_u16::<BigEndian>()? != 0 {
+            
             return Err(io::Error::new(io::ErrorKind::InvalidData, "invalid reserved bytes"));
         }
         if header.read_u8()? != 0 {
+            
             return Err(io::Error::new(io::ErrorKind::InvalidData, "invalid fragment id"));
         }
 
