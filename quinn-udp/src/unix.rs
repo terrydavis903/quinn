@@ -559,20 +559,22 @@ fn recv_proxy(io: SockRef<'_>, bufs: &mut [IoSliceMut<'_>], meta: &mut [RecvMeta
         }
 
 
-        // let overflow = len.saturating_sub(header.len());
+        let mut header_buf = &mut header;
 
-        let mut header = &mut &header[4..];
-
-        if header.read_u16::<BigEndian>()? != 0 {
+        if header_buf.read_u16::<BigEndian>()? != 0 {
             
             return Err(io::Error::new(io::ErrorKind::InvalidData, "invalid reserved bytes"));
         }
-        if header.read_u8()? != 0 {
+        if header_buf.read_u8()? != 0 {
             
             return Err(io::Error::new(io::ErrorKind::InvalidData, "invalid fragment id"));
         }
 
-        let header_buf = &mut header;
+        if header_buf.read_u8()? != 1 {
+            
+            return Err(io::Error::new(io::ErrorKind::InvalidData, "invalid ip type"));
+        }
+        
         let ip = Ipv4Addr::from(header_buf.read_u32::<BigEndian>()?);
         let port = header_buf.read_u16::<BigEndian>()?;
         let addr = SocketAddr::V4(SocketAddrV4::new(ip, port));
