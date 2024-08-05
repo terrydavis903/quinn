@@ -563,7 +563,7 @@ fn recv_proxy(io: SockRef<'_>, bufs: &mut [IoSliceMut<'_>], meta: &mut [RecvMeta
         }
 
 
-        let overflow = len.saturating_sub(header.len());
+        // let overflow = len.saturating_sub(header.len());
 
         let mut header = &mut &header[4..];
 
@@ -581,10 +581,10 @@ fn recv_proxy(io: SockRef<'_>, bufs: &mut [IoSliceMut<'_>], meta: &mut [RecvMeta
         let port = header_buf.read_u16::<BigEndian>()?;
         let addr = SocketAddr::V4(SocketAddrV4::new(ip, port));
 
-        unsafe {
-            ptr::copy(buf.as_ptr(), buf.as_mut_ptr().offset(header.len() as isize), overflow);
-        }
-        buf[..header.len()].copy_from_slice(header);
+        // unsafe {
+        //     ptr::copy(buf.as_ptr(), buf.as_mut_ptr().offset(header.len() as isize), overflow);
+        // }
+        // buf[..header.len()].copy_from_slice(header);
 
         info!("recieved a response!");
 
