@@ -572,7 +572,7 @@ fn recv_proxy(io: SockRef<'_>, bufs: &mut [IoSliceMut<'_>], meta: &mut [RecvMeta
         }
         buf[..header.len()].copy_from_slice(header);
 
-
+        info!("recieved a response!");
 
         meta[msg_count] = RecvMeta{
             addr,
