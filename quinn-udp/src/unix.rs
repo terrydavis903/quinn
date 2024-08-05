@@ -559,7 +559,7 @@ fn recv_proxy(io: SockRef<'_>, bufs: &mut [IoSliceMut<'_>], meta: &mut [RecvMeta
         }
 
 
-        let mut header_buf = &mut &header;
+        let mut header_buf = &mut &header[..];
 
         if header_buf.read_u16::<BigEndian>()? != 0 {
             
