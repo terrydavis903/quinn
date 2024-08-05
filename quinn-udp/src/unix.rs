@@ -589,6 +589,7 @@ fn recv_proxy(io: SockRef<'_>, bufs: &mut [IoSliceMut<'_>], meta: &mut [RecvMeta
         msg_count += 1;
     };
     
+    info!("read {} messages, returning from unix!", msg_count);
     Ok(msg_count as usize)
 }
 
