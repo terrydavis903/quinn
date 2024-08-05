@@ -586,8 +586,8 @@ fn recv_proxy(io: SockRef<'_>, bufs: &mut [IoSliceMut<'_>], meta: &mut [RecvMeta
 
         meta[msg_count] = RecvMeta{
             addr,
-            len: r -  10,
-            stride: r -  10,
+            len: (r - 10) as usize,
+            stride: (r - 10) as usize,
             ecn: None,
             dst_ip: None,
         };
