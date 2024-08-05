@@ -109,7 +109,14 @@ impl AsyncUdpSocket for UdpSocket {
             });
             
             if let Ok(res) = io_res{
+                if res != 0{
+                    info!("tokio recieved: {} msgs", res);
+                }
                 return Poll::Ready(Ok(res));
+            }else
+            if let Err(res_err) = io_res{
+                info!("tokio proxy rec error: {}", res_err);
+                return Poll::Ready(Err(res_err));
             }
         }
     }
