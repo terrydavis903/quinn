@@ -523,7 +523,7 @@ fn recv_proxy(io: SockRef<'_>, bufs: &mut [IoSliceMut<'_>], meta: &mut [RecvMeta
     let max_msg_count = bufs.len().min(BATCH_SIZE);
     let mut msg_count = 0;
     while msg_count < max_msg_count {
-        let mut header = [0; 260 + 3];
+        let mut header = [0; 10];
         let buf = &mut bufs[msg_count];
 
         let r = unsafe {
@@ -562,12 +562,10 @@ fn recv_proxy(io: SockRef<'_>, bufs: &mut [IoSliceMut<'_>], meta: &mut [RecvMeta
             break;
         }
 
-        let len = r as usize;
 
         let overflow = len.saturating_sub(header.len());
 
-        let header_len = cmp::min(header.len(), len);
-        let mut header = &mut &header[..header_len];
+        let mut header = &mut &header[4..];
 
         if header.read_u16::<BigEndian>()? != 0 {
             
