@@ -941,7 +941,7 @@ impl State {
                     }
                 }
                 ConnectionLost { reason } => {
-                    debug!("connection lost, terminating connection");
+                    debug!("connection lost, because: {}", reason);
                     self.terminate(reason, shared);
                 }
                 Stream(StreamEvent::Writable { id }) => {
@@ -1069,7 +1069,7 @@ impl State {
             let _ = x.send(Some(WriteError::ConnectionLost(reason.clone())));
         }
         if let Some(x) = self.on_connected.take() {
-            debug!("setting on connectedt to false");
+            debug!("setting on connected to false");
             let _ = x.send(false);
         }
         for (_, waker) in self.stopped.drain() {
