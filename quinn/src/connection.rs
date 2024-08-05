@@ -180,6 +180,7 @@ impl Future for Connecting {
                 drop(inner);
                 Ok(Connection(conn))
             } else {
+                debug!("inner not connected");
                 Err(inner
                     .error
                     .clone()
