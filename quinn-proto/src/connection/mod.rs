@@ -12,7 +12,8 @@ use bytes::{Bytes, BytesMut};
 use frame::StreamMetaVec;
 use rand::{rngs::StdRng, Rng, SeedableRng};
 use thiserror::Error;
-use tracing::{debug, error, trace, trace_span, warn};
+use tracing::{trace, trace_span, warn};
+use log::{debug, error};
 
 use crate::{
     cid_generator::ConnectionIdGenerator,
@@ -2536,7 +2537,7 @@ impl Connection {
                             prev_path.challenge_pending = false;
                         }
                     } else {
-                        debug!(token, "ignoring invalid PATH_RESPONSE");
+                        debug!("{} {}", token, "ignoring invalid PATH_RESPONSE");
                     }
                 }
                 Frame::MaxData(bytes) => {
@@ -2554,7 +2555,7 @@ impl Connection {
                     }
                 }
                 Frame::DataBlocked { offset } => {
-                    debug!(offset, "peer claims to be blocked at connection level");
+                    debug!("{} {}", offset, "peer claims to be blocked at connection level");
                 }
                 Frame::StreamDataBlocked { id, offset } => {
                     if id.initiator() == self.side && id.dir() == Dir::Uni {
@@ -2563,10 +2564,10 @@ impl Connection {
                             "STREAM_DATA_BLOCKED on send-only stream",
                         ));
                     }
-                    debug!(
-                        stream = %id,
-                        offset, "peer claims to be blocked at stream level"
-                    );
+                    // debug!(
+                    //     stream = %id,
+                    //     offset, "peer claims to be blocked at stream level"
+                    // );
                 }
                 Frame::StreamsBlocked { dir, limit } => {
                     if limit > MAX_STREAM_COUNT {
