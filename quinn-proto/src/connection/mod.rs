@@ -358,6 +358,7 @@ impl Connection {
     /// - a call was made to `handle_timeout`
     #[must_use]
     pub fn poll(&mut self) -> Option<Event> {
+        debug!("polling inner conn");
         if let Some(x) = self.events.pop_front() {
             return Some(x);
         }
