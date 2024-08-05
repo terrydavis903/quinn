@@ -415,7 +415,9 @@ impl ProxyState {
         loop {
             match self.socket.proxy_recv(cx, &mut iovs, &mut metas) {
                 Poll::Ready(Ok(msgs)) => {
-                    debug!("socket recieved {} messages", msgs);
+                    if msgs != 0{
+                        debug!("socket recieved {} messages", msgs);
+                    }
                     self.recv_limiter.record_work(msgs);
                     for (meta, buf) in metas.iter().zip(iovs.iter()).take(msgs) {
                         let mut data: BytesMut = buf[0..meta.len].into();
