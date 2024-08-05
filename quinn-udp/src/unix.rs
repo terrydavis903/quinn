@@ -547,7 +547,9 @@ fn recv_proxy(io: SockRef<'_>, bufs: &mut [IoSliceMut<'_>], meta: &mut [RecvMeta
                     continue
                 }
                 io::ErrorKind::WouldBlock => {
-                    info!("read {} messages, returning from inner unix1 !", msg_count);
+                    if msg_count > 0{
+                        info!("read {} messages, returning from inner unix1 !", msg_count);
+                    }
                     return Ok(msg_count)
                 },
                 _ => {
