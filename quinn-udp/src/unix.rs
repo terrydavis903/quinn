@@ -542,10 +542,15 @@ fn recv_proxy(io: SockRef<'_>, bufs: &mut [IoSliceMut<'_>], meta: &mut [RecvMeta
 
         if r == -1 {
             let e = io::Error::last_os_error();
-            if e.kind() == io::ErrorKind::Interrupted {
-                continue;
+            match e.kind() {
+                io::ErrorKind::Interrupted => {
+                    continue
+                }
+                io::ErrorKind::WouldBlock => return Ok(msg_count),
+                _ => {
+                    return Err(e);
+                }
             }
-            return Err(e);
         }
 
         if r == 0{
