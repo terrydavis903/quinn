@@ -548,6 +548,10 @@ fn recv_proxy(io: SockRef<'_>, bufs: &mut [IoSliceMut<'_>], meta: &mut [RecvMeta
             return Err(e);
         }
 
+        if r == 0{
+            break;
+        }
+
         let len = r as usize;
 
         let overflow = len.saturating_sub(header.len());

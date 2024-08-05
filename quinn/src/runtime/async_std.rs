@@ -71,6 +71,7 @@ impl AsyncUdpSocket for UdpSocket {
     ) -> Poll<io::Result<usize>> {
         loop {
             ready!(self.io.poll_readable(cx))?;
+            debug!("std proxy rec");
             
             if let Ok(res) = self.inner.recv_proxy((&self.io).into(), bufs, meta) {
                 return Poll::Ready(Ok(res));

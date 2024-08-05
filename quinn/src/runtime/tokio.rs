@@ -103,12 +103,18 @@ impl AsyncUdpSocket for UdpSocket {
     ) -> Poll<io::Result<usize>> {
         loop {
             ready!(self.io.poll_recv_ready(cx))?;
+            debug!("tokio proxy rec");
             
-            if let Ok(res) = self.io.try_io(Interest::READABLE, || {
+            let io_res = self.io.try_io(Interest::READABLE, || {
                 self.inner.recv_proxy((&self.io).into(), bufs, meta)
-            }) {
+            });
+            
+            if let Ok(res) = io_res{
                 debug!("async tokio proxy rec read: {} messages", res);
                 return Poll::Ready(Ok(res));
+            }else
+            if let Err(res_err) = io_res{
+                debug!("async tokio proxy err'd with: {}", res_err);
             }
         }
     }
