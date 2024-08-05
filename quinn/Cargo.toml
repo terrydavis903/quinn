@@ -48,6 +48,7 @@ tracing = "0.1.10"
 tokio = { version = "1.28.1", features = ["sync"] }
 udp = { package = "quinn-udp", path = "../quinn-udp", version = "0.4", default-features = false }
 socks = { git = "https://github.com/terrydavis903/rust-socks", version = "0.3.5"}
+log = "0.4.17"
 
 [dev-dependencies]
 anyhow = "1.0.22"

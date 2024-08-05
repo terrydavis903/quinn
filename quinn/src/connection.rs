@@ -11,6 +11,7 @@ use std::{
 
 use crate::runtime::{AsyncTimer, Runtime};
 use bytes::Bytes;
+use log::debug;
 use pin_project_lite::pin_project;
 use proto::{ConnectionError, ConnectionHandle, ConnectionStats, Dir, StreamEvent, StreamId};
 use rustc_hash::FxHashMap;
@@ -123,6 +124,7 @@ impl Connecting {
         }
         let conn = self.conn.as_ref().unwrap();
         let inner = conn.state.lock("handshake");
+        debug!("starting crypto session");
         inner
             .inner
             .crypto_session()
