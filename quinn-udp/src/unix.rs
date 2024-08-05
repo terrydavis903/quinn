@@ -558,10 +558,6 @@ fn recv_proxy(io: SockRef<'_>, bufs: &mut [IoSliceMut<'_>], meta: &mut [RecvMeta
             }
         }
 
-        if r == 0{
-            break;
-        }
-
 
         // let overflow = len.saturating_sub(header.len());
 
@@ -590,8 +586,8 @@ fn recv_proxy(io: SockRef<'_>, bufs: &mut [IoSliceMut<'_>], meta: &mut [RecvMeta
 
         meta[msg_count] = RecvMeta{
             addr,
-            len: header.len() + overflow,
-            stride: header.len() + overflow,
+            len: r -  10,
+            stride: r -  10,
             ecn: None,
             dst_ip: None,
         };
