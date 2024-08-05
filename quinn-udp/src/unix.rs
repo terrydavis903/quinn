@@ -559,7 +559,7 @@ fn recv_proxy(io: SockRef<'_>, bufs: &mut [IoSliceMut<'_>], meta: &mut [RecvMeta
         }
 
 
-        let mut header_buf = &mut header;
+        let mut header_buf = &mut &header;
 
         if header_buf.read_u16::<BigEndian>()? != 0 {
             
@@ -574,7 +574,7 @@ fn recv_proxy(io: SockRef<'_>, bufs: &mut [IoSliceMut<'_>], meta: &mut [RecvMeta
             
             return Err(io::Error::new(io::ErrorKind::InvalidData, "invalid ip type"));
         }
-        
+
         let ip = Ipv4Addr::from(header_buf.read_u32::<BigEndian>()?);
         let port = header_buf.read_u16::<BigEndian>()?;
         let addr = SocketAddr::V4(SocketAddrV4::new(ip, port));
