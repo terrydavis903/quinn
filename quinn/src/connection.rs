@@ -175,6 +175,7 @@ impl Future for Connecting {
         Pin::new(&mut self.connected).poll(cx).map(|_| {
             let conn = self.conn.take().unwrap();
             let inner = conn.state.lock("connecting");
+            debug!("getting inner conn state for connecting");
             if inner.connected {
                 drop(inner);
                 Ok(Connection(conn))
