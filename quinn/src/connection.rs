@@ -229,6 +229,7 @@ impl Future for ConnectionDriver {
         let _guard = span.enter();
 
         if let Err(e) = conn.process_conn_events(&self.0.shared, cx) {
+            debug!("error processing conn events, closing");
             conn.terminate(e, &self.0.shared);
             return Poll::Ready(());
         }
@@ -940,6 +941,7 @@ impl State {
                     }
                 }
                 ConnectionLost { reason } => {
+                    debug!("connection lost, terminating connection");
                     self.terminate(reason, shared);
                 }
                 Stream(StreamEvent::Writable { id }) => {
@@ -1067,6 +1069,7 @@ impl State {
             let _ = x.send(Some(WriteError::ConnectionLost(reason.clone())));
         }
         if let Some(x) = self.on_connected.take() {
+            debug!("setting on connectedt to false");
             let _ = x.send(false);
         }
         for (_, waker) in self.stopped.drain() {
