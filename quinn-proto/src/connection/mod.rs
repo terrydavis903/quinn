@@ -2080,6 +2080,7 @@ impl Connection {
 
         // State transitions for error cases
         if let Err(conn_err) = result {
+            debug!("inner handle packet err: {}", conn_err);
             self.error = Some(conn_err.clone());
             self.state = match conn_err {
                 ConnectionError::ApplicationClosed(reason) => State::closed(reason),
