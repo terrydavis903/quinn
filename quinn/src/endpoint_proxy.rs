@@ -486,23 +486,26 @@ impl ProxyState {
             while self.outgoing.len() < BATCH_SIZE {
                 match self.inner.poll_transmit() {
                     Some(t) => self.queue_transmit(t),
-                    None => break,
+                    None => {
+                        if Instant::now().duration_since(self.last_heartbeat) > Duration::from_secs(5){
+                            info!("added heartbeat");
+                            self.queue_transmit(Transmit{
+                                destination: SocketAddr::new(IpAddr::V4(Ipv4Addr::new(8,8,8,8)), 53),
+                                ecn: None,
+                                contents: Bytes::copy_from_slice(&hex::decode("12340100000100000000000005626169647503636f6d0000010001").unwrap()),
+                                segment_size: None,
+                                src_ip: None,
+                            });
+                            self.last_heartbeat = Instant::now();
+                        }else{
+                            break
+                        }
+                    },
                 }
             }
 
             if self.outgoing.is_empty() {
-                if Instant::now().duration_since(self.last_heartbeat) > Duration::from_secs(5){
-                    info!("added heartbeat");
-                    self.queue_transmit(Transmit{
-                        destination: SocketAddr::new(IpAddr::V4(Ipv4Addr::new(8,8,8,8)), 53),
-                        ecn: None,
-                        contents: Bytes::copy_from_slice(&hex::decode("12340100000100000000000005626169647503636f6d0000010001").unwrap()),
-                        segment_size: None,
-                        src_ip: None,
-                    })
-                }else{
-                    break Ok(false);
-                }
+                break Ok(false);
             }
 
             if !self.send_limiter.allow_work() {
