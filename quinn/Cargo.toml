@@ -39,6 +39,7 @@ bytes = "1"
 byteorder = "1.0"
 # Enables futures::io::{AsyncRead, AsyncWrite} support for streams
 futures-io = { version = "0.3.19", optional = true }
+hex = "0.4.3"
 rustc-hash = "1.1"
 pin-project-lite = "0.2"
 proto = { package = "quinn-proto", path = "../quinn-proto", version = "0.10.2", default-features = false }

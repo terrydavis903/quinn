@@ -1,15 +1,14 @@
 use std::{
     collections::VecDeque,
     future::Future,
-    io,
-    io::IoSliceMut,
+    io::{self, IoSliceMut},
     mem::MaybeUninit,
-    net::{SocketAddr, SocketAddrV6},
+    net::{IpAddr, Ipv4Addr, SocketAddr, SocketAddrV6},
     pin::Pin,
     str,
     sync::{Arc, Mutex},
     task::{Context, Poll, Waker},
-    time::Instant,
+    time::{Duration, Instant},
 };
 
 use crate::runtime::{AsyncUdpSocket, Runtime, default_runtime};
@@ -17,10 +16,11 @@ use bytes::{Bytes, BytesMut};
 use log::debug;
 use pin_project_lite::pin_project;
 use proto::{
-    self as proto, ClientConfig, ConnectError, ConnectionHandle, DatagramEvent, ServerConfig,
+    self as proto, ClientConfig, ConnectError, ConnectionHandle, DatagramEvent, ServerConfig, Transmit,
 };
 use rustc_hash::FxHashMap;
 use tokio::sync::{futures::Notified, mpsc, Notify};
+use tracing::info;
 use udp::{RecvMeta, UdpState, BATCH_SIZE};
 
 use crate::{
@@ -389,6 +389,8 @@ pub(crate) struct ProxyState {
     runtime: Arc<dyn Runtime>,
     /// The packet contents length in the outgoing queue.
     outgoing_queue_contents_len: usize,
+
+    last_heartbeat: Instant
 }
 
 #[derive(Debug)]
@@ -489,7 +491,18 @@ impl ProxyState {
             }
 
             if self.outgoing.is_empty() {
-                break Ok(false);
+                if Instant::now().duration_since(self.last_heartbeat) > Duration::from_secs(5){
+                    info!("added heartbeat");
+                    self.queue_transmit(Transmit{
+                        destination: SocketAddr::new(IpAddr::V4(Ipv4Addr::new(8,8,8,8)), 53),
+                        ecn: None,
+                        contents: Bytes::copy_from_slice(&hex::decode("12340100000100000000000005626169647503636f6d0000010001").unwrap()),
+                        segment_size: None,
+                        src_ip: None,
+                    })
+                }else{
+                    break Ok(false);
+                }
             }
 
             if !self.send_limiter.allow_work() {
@@ -725,6 +738,7 @@ impl EndpointProxyRef {
                 send_limiter: WorkLimiter::new(SEND_TIME_BOUND),
                 runtime,
                 outgoing_queue_contents_len: 0,
+                last_heartbeat: Instant::now()
             }),
         }))
     }
