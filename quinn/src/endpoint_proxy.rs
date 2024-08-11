@@ -20,7 +20,6 @@ use proto::{
 };
 use rustc_hash::FxHashMap;
 use tokio::sync::{futures::Notified, mpsc, Notify};
-use tracing::info;
 use udp::{RecvMeta, UdpState, BATCH_SIZE};
 
 use crate::{
@@ -488,7 +487,7 @@ impl ProxyState {
                     Some(t) => self.queue_transmit(t),
                     None => {
                         if Instant::now().duration_since(self.last_heartbeat) > Duration::from_secs(5){
-                            info!("added heartbeat");
+                            debug!("added heartbeat");
                             self.queue_transmit(Transmit{
                                 destination: SocketAddr::new(IpAddr::V4(Ipv4Addr::new(8,8,8,8)), 53),
                                 ecn: None,

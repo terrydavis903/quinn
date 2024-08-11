@@ -350,7 +350,7 @@ impl crypto::PacketKey for PacketKey {
     fn encrypt(&self, packet: u64, buf: &mut [u8], header_len: usize) {
         let (header, payload_tag) = buf.split_at_mut(header_len);
         let (payload, tag_storage) = payload_tag.split_at_mut(payload_tag.len() - self.tag_len());
-        debug!("encrypting in place packet key");
+        // debug!("encrypting in place packet key");
         let tag = self.encrypt_in_place(packet, &*header, payload).unwrap();
         tag_storage.copy_from_slice(tag.as_ref());
     }
@@ -361,7 +361,7 @@ impl crypto::PacketKey for PacketKey {
         header: &[u8],
         payload: &mut BytesMut,
     ) -> Result<(), CryptoError> {
-        debug!("decrypting in place packetkey");
+        // debug!("decrypting in place packetkey");
         let plain = self
             .decrypt_in_place(packet, header, payload.as_mut())
             .map_err(|_| CryptoError)?;

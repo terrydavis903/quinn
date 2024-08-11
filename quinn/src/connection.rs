@@ -124,7 +124,7 @@ impl Connecting {
         }
         let conn = self.conn.as_ref().unwrap();
         let inner = conn.state.lock("handshake");
-        debug!("starting crypto session");
+        // debug!("starting crypto session");
         inner
             .inner
             .crypto_session()
