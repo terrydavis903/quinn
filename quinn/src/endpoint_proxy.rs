@@ -483,6 +483,7 @@ impl ProxyState {
 
         let result = loop {
             while self.outgoing.len() < BATCH_SIZE {
+                debug!("polling transmit");
                 match self.inner.poll_transmit() {
                     Some(t) => self.queue_transmit(t),
                     None => {
