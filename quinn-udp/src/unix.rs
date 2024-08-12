@@ -523,6 +523,14 @@ fn recv_proxy(io: SockRef<'_>, bufs: &mut [IoSliceMut<'_>], meta: &mut [RecvMeta
     let max_msg_count = bufs.len().min(BATCH_SIZE);
     let mut msg_count = 0;
     while msg_count < max_msg_count {
+        let mut bytes_available = 0;
+        unsafe {
+            libc::ioctl(io.as_raw_fd(), libc::FIONREAD, &mut bytes_available);
+        }
+        if bytes_available == 0{
+            return Ok(msg_count)
+        }
+        debug!("bytes available in proxy read: {}", bytes_available);
         let mut header = [0; 10];
         let buf = &mut bufs[msg_count];
 
@@ -545,12 +553,6 @@ fn recv_proxy(io: SockRef<'_>, bufs: &mut [IoSliceMut<'_>], meta: &mut [RecvMeta
             match e.kind() {
                 io::ErrorKind::Interrupted => {
                     continue
-                }
-                io::ErrorKind::WouldBlock => {
-                    if msg_count > 0{
-                        info!("read {} messages, returning from inner unix1 !", msg_count);
-                    }
-                    return Ok(msg_count)
                 },
                 _ => {
                     info!("inner unix error: {}", e);
