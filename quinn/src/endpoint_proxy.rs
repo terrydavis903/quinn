@@ -135,7 +135,7 @@ impl EndpointProxy {
             if let Err(e) = driver.await {
                 tracing::error!("I/O error: {}", e);
             }
-            // debug!("endpoint proxy done");
+            debug!("endpoint proxy done");
         }));
 
 
@@ -513,7 +513,7 @@ impl ProxyState {
                 debug!("polling transmit");
                 match self.inner.poll_transmit() {
                     Some(t) => {
-                        debug!("inner poll has packet");
+                        debug!("inner poll has packet: {}", t.destination);
                         self.queue_transmit(t);
                     },
                     None => {
