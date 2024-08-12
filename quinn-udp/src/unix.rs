@@ -530,7 +530,7 @@ fn recv_proxy(io: SockRef<'_>, bufs: &mut [IoSliceMut<'_>], meta: &mut [RecvMeta
         if bytes_available == 0{
             return Ok(msg_count)
         }
-        debug!("bytes available in proxy read: {}", bytes_available);
+        info!("bytes available in proxy read: {}", bytes_available);
         let mut header = [0; 10];
         let buf = &mut bufs[msg_count];
 
