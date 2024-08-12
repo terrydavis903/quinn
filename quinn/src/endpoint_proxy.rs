@@ -147,19 +147,13 @@ impl EndpointProxy {
                 {
                     let inner_lock =  inner_pref.0.state.lock().unwrap();
                     if inner_lock.driver.is_some(){
-                        inner_lock.driver.as_ref().unwrap().wake_by_ref();
+                        inner_lock.driver.as_ref().unwrap().clone().wake();
                     }
                     drop(inner_lock);
                 }
                 
                 
-                if let Ok(_) = tokio::time::timeout(
-                    Duration::from_secs(10),
-                    std::future::pending::<()>()
-                ).await{
-                    debug!("tokio inner returned!");
-                    return;
-                };
+                tokio::time::sleep(Duration::from_secs(10)).await;
             };
         }));
         
