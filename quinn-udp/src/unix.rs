@@ -309,7 +309,7 @@ fn send_proxy(
                 fwd_hdr.write_u16::<BigEndian>(v4_addr.port()).unwrap();
             },
             _ => {
-
+                info!("non v4 addr: {}", addr_raw);
             }
         };
         

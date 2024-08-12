@@ -494,6 +494,7 @@ impl ProxyState {
                     }
                 }
                 Poll::Pending => {
+                    debug!("poll recv socket pending");
                     break;
                 }
                 // Ignore ECONNRESET as it's undefined in QUIC and may be injected by an
@@ -568,11 +569,11 @@ impl ProxyState {
                     self.send_limiter.record_work(n);
                 }
                 Poll::Pending => {
-                    debug!("poll socketpending");
+                    debug!("poll write socket pending");
                     break Ok(false);
                 }
                 Poll::Ready(Err(e)) => {
-                    debug!("poll ready error: {}", e);
+                    debug!("poll write ready error: {}", e);
                     break Err(e);
                 }
             }
