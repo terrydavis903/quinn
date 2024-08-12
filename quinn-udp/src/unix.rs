@@ -315,8 +315,7 @@ fn send_proxy(
         
         let written_len = fwd_hdr.len();
 
-        info!("start len: {}", start_len);
-        info!("written len: {}", written_len);
+        info!("udp proxy write addr: {}", addr_raw);
 
         let bufs = [&header[..10], &transmits[sent_msg].contents];
         // let bufs = [&header[..((start_len - written_len) + 3) as usize], &transmits[sent_msg].contents];
@@ -353,6 +352,7 @@ fn send_proxy(
                     //   configuration can be dynamically changed.
                     // - Destination unreachable errors have been observed for other
                     log_sendmsg_error(last_send_error, e, &transmits[sent_msg]);
+                    
                 }
             }
         }else{
@@ -553,6 +553,7 @@ fn recv_proxy(io: SockRef<'_>, bufs: &mut [IoSliceMut<'_>], meta: &mut [RecvMeta
                     return Ok(msg_count)
                 },
                 _ => {
+                    info!("inner unix error: {}", e);
                     return Err(e);
                 }
             }
