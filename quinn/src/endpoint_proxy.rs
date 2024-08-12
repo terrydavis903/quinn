@@ -121,6 +121,7 @@ impl EndpointProxy {
         runtime: Arc<dyn Runtime>,
     ) -> io::Result<Self> {
         let addr = socket.local_addr()?;
+        debug!("bound to: {}", addr);
         let allow_mtud = !socket.may_fragment();
         let rc = EndpointProxyRef::new(
             socket,
