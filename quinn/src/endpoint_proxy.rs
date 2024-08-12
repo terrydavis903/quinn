@@ -140,7 +140,7 @@ impl EndpointProxy {
 
 
         let pref_clone = rc.clone();
-        runtime.spawn(Box::pin(async move{
+        std::thread::spawn(move || {
             let inner_pref = pref_clone;
             loop{
                 debug!("driving heartbeat loop");
@@ -153,9 +153,9 @@ impl EndpointProxy {
                 }
                 
                 
-                tokio::time::sleep(Duration::from_secs(10)).await;
+                std::thread::sleep(Duration::from_secs(10));
             };
-        }));
+        });
         
         Ok(Self {
             inner: rc,
