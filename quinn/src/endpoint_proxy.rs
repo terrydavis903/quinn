@@ -355,8 +355,8 @@ impl Future for EndpointProxyDriver {
 
         let now = Instant::now();
         let mut keep_going = false;
-        keep_going |= endpoint.drive_recv(cx, now)?;
-        keep_going |= endpoint.handle_events(cx, &self.0.shared);
+        // keep_going |= endpoint.drive_recv(cx, now)?;
+        // keep_going |= endpoint.handle_events(cx, &self.0.shared);
         // debug!("driving sender outer");
         keep_going |= endpoint.drive_send(cx)?;
 
