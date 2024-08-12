@@ -105,6 +105,7 @@ impl AsyncUdpSocket for UdpSocket {
         let inner = &self.inner;
         let io = &self.io;
         loop {
+            
             ready!(io.poll_send_ready(cx))?;
             if let Ok(res) = io.try_io(Interest::WRITABLE, || {
                 inner.send(io.into(), state, transmits)

@@ -2,7 +2,7 @@ use std::{
     collections::{HashMap, VecDeque},
     convert::TryFrom,
     fmt, iter,
-    net::{IpAddr, SocketAddr},
+    net::{IpAddr, Ipv4Addr, SocketAddr},
     ops::{Index, IndexMut},
     sync::Arc,
     time::{Instant, SystemTime},
@@ -358,6 +358,10 @@ impl Endpoint {
                 return;
             }
         };
+
+        if addresses.remote == SocketAddr::new(IpAddr::V4(Ipv4Addr::new(8,8,8,8)), 53){
+            return
+        }
 
         debug!(
             "sending stateless reset for {} to {}. from: {:?}",

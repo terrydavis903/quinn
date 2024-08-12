@@ -318,7 +318,8 @@ fn send_proxy(
         info!("start len: {}", start_len);
         info!("written len: {}", written_len);
 
-        let bufs = [&header[..((start_len - written_len) + 3) as usize], &transmits[sent_msg].contents];
+        let bufs = [&header[..10], &transmits[sent_msg].contents];
+        // let bufs = [&header[..((start_len - written_len) + 3) as usize], &transmits[sent_msg].contents];
 
 
         let r = unsafe {
@@ -352,7 +353,6 @@ fn send_proxy(
                     //   configuration can be dynamically changed.
                     // - Destination unreachable errors have been observed for other
                     log_sendmsg_error(last_send_error, e, &transmits[sent_msg]);
-                    sent_msg += 1;
                 }
             }
         }else{
