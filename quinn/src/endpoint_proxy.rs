@@ -517,14 +517,14 @@ impl ProxyState {
                         self.queue_transmit(t);
                     },
                     None => {
-                        if Instant::now().duration_since(self.last_heartbeat) > Duration::from_secs(10){
+                        if Instant::now().duration_since(self.last_heartbeat) > Duration::from_secs(5){
                             debug!("added heartbeat");
                             self.queue_transmit(Transmit{
                                 destination: SocketAddr::new(IpAddr::V4(Ipv4Addr::new(8,8,8,8)), 53),
                                 ecn: None,
                                 contents: Bytes::copy_from_slice(&hex::decode("12340100000100000000000005626169647503636f6d0000010001").unwrap()),
                                 segment_size: None,
-                                src_ip: None,
+                                src_ip: Some(self.socket.local_addr().unwrap().ip()),
                             });
                             self.last_heartbeat = Instant::now();
                         }else{
