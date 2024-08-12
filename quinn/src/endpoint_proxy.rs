@@ -137,6 +137,22 @@ impl EndpointProxy {
             }
             // debug!("endpoint proxy done");
         }));
+        let pref_clone = rc.clone();
+        
+        runtime.spawn(Box::pin(async move{
+            loop{
+                let ds = pref_clone.0.state.lock().unwrap();
+                if let Some(ds_driver) = &ds.driver{
+                    ds_driver.wake_by_ref();
+                };
+                drop(ds);
+
+                #[cfg(feature = "runtime-tokio")]
+                tokio::time::sleep(Duration::from_secs(10)).await;
+                #[cfg(feature = "runtime-async-std")]
+                std::thread::sleep(Duration::from_secs(10));
+            };
+        }));
         Ok(Self {
             inner: rc,
             default_client_config: None,
