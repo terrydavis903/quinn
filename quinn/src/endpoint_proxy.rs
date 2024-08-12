@@ -550,6 +550,7 @@ impl ProxyState {
             }
 
             if !self.send_limiter.allow_work() {
+                debug!("not allowing work");
                 break Ok(true);
             }
 
@@ -558,6 +559,7 @@ impl ProxyState {
                 .proxy_send(&self.udp_state, cx, self.outgoing.as_slices().0)
             {
                 Poll::Ready(Ok(n)) => {
+                    debug!("poll ready for writing");
                     let contents_len: usize =
                         self.outgoing.drain(..n).map(|t| t.contents.len()).sum();
                     self.decrement_outgoing_contents_len(contents_len);
