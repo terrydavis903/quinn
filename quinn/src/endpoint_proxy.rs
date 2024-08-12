@@ -128,14 +128,14 @@ impl EndpointProxy {
             addr.is_ipv6(),
             runtime.clone(),
         );
-        debug!("spawning endpoint proxy");
+        // debug!("spawning endpoint proxy");
         let driver = EndpointProxyDriver(rc.clone());
         runtime.spawn(Box::pin(async {
-            debug!("endpoint proxy spawned. im inside closure");
+            // debug!("endpoint proxy spawned. im inside closure");
             if let Err(e) = driver.await {
                 tracing::error!("I/O error: {}", e);
             }
-            debug!("endpoint proxy done");
+            // debug!("endpoint proxy done");
         }));
         Ok(Self {
             inner: rc,
@@ -324,19 +324,19 @@ impl Future for EndpointProxyDriver {
 
     #[allow(unused_mut)] // MSRV
     fn poll(mut self: Pin<&mut Self>, cx: &mut Context) -> Poll<Self::Output> {
-        debug!("polling endpoint proxy driver");
+        // debug!("polling endpoint proxy driver");
         let mut endpoint = self.0.state.lock().unwrap();
         if endpoint.driver.is_none() {
             endpoint.driver = Some(cx.waker().clone());
         }
 
-        debug!("staring sub drivers");
+        // debug!("staring sub drivers");
 
         let now = Instant::now();
         let mut keep_going = false;
         keep_going |= endpoint.drive_recv(cx, now)?;
         keep_going |= endpoint.handle_events(cx, &self.0.shared);
-        debug!("driving sender outer");
+        // debug!("driving sender outer");
         keep_going |= endpoint.drive_send(cx)?;
 
         if !endpoint.incoming.is_empty() {
@@ -344,16 +344,16 @@ impl Future for EndpointProxyDriver {
         }
 
         if endpoint.ref_count == 0 && endpoint.connections.is_empty() {
-            debug!("returning from inner endpoint ref. all outstanding dropped");
+            // debug!("returning from inner endpoint ref. all outstanding dropped");
             Poll::Ready(Ok(()))
         } else {
             drop(endpoint);
-            debug!("reference alive");
+            // debug!("reference alive");
             // If there is more work to do schedule the endpoint task again.
             // `wake_by_ref()` is called outside the lock to minimize
             // lock contention on a multithreaded runtime.
             if keep_going {
-                debug!("keep going, more work");
+                // debug!("keep going, more work");
                 cx.waker().wake_by_ref();
             }
             Poll::Pending
