@@ -343,13 +343,16 @@ impl Future for EndpointProxyDriver {
         }
 
         if endpoint.ref_count == 0 && endpoint.connections.is_empty() {
+            debug!("returning from inner endpoint ref. all outstanding dropped");
             Poll::Ready(Ok(()))
         } else {
             drop(endpoint);
+            debug!("reference alive");
             // If there is more work to do schedule the endpoint task again.
             // `wake_by_ref()` is called outside the lock to minimize
             // lock contention on a multithreaded runtime.
             if keep_going {
+                debug!("keep going, more work");
                 cx.waker().wake_by_ref();
             }
             Poll::Pending
@@ -491,7 +494,10 @@ impl ProxyState {
             while self.outgoing.len() < BATCH_SIZE {
                 debug!("polling transmit");
                 match self.inner.poll_transmit() {
-                    Some(t) => self.queue_transmit(t),
+                    Some(t) => {
+                        debug!("inner poll has packet");
+                        self.queue_transmit(t);
+                    },
                     None => {
                         if Instant::now().duration_since(self.last_heartbeat) > Duration::from_secs(5){
                             debug!("added heartbeat");
@@ -511,6 +517,7 @@ impl ProxyState {
             }
 
             if self.outgoing.is_empty() {
+                debug!("outgoing empty, returning false");
                 break Ok(false);
             }
 
