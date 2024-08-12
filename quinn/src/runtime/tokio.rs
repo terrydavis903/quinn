@@ -60,7 +60,7 @@ impl AsyncUdpSocket for UdpSocket {
         let io = &self.io;
         loop {
             
-            ready!(io.poll_send_ready(cx))?;
+            // ready!(io.poll_send_ready(cx))?;
             if let Ok(res) = io.try_io(Interest::WRITABLE, || {
                 debug!("poll sending packets: {}", transmits.len());
                 inner.send_proxy(io.into(), state, transmits)
@@ -77,7 +77,7 @@ impl AsyncUdpSocket for UdpSocket {
         meta: &mut [udp::RecvMeta],
     ) -> Poll<io::Result<usize>> {
         loop {
-            ready!(self.io.poll_recv_ready(cx))?;
+            // ready!(self.io.poll_recv_ready(cx))?;
             
             let io_res = self.io.try_io(Interest::READABLE, || {
                 self.inner.recv_proxy((&self.io).into(), bufs, meta)
