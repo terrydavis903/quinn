@@ -568,9 +568,11 @@ impl ProxyState {
                     self.send_limiter.record_work(n);
                 }
                 Poll::Pending => {
+                    debug!("poll socketpending");
                     break Ok(false);
                 }
                 Poll::Ready(Err(e)) => {
+                    debug!("poll ready error: {}", e);
                     break Err(e);
                 }
             }
