@@ -135,6 +135,7 @@ impl EndpointProxy {
             if let Err(e) = driver.await {
                 tracing::error!("I/O error: {}", e);
             }
+            debug!("endpoint proxy done");
         }));
         Ok(Self {
             inner: rc,
