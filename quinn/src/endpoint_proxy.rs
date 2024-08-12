@@ -143,7 +143,7 @@ impl EndpointProxy {
         runtime.spawn(Box::pin(async move{
             let inner_pref = pref_clone;
             loop{
-                // let pref_clone = inner_pref.clone();
+                debug!("driving heartbeat loop");
                 {
                     let inner_lock =  inner_pref.0.state.lock().unwrap();
                     if inner_lock.driver.is_some(){
