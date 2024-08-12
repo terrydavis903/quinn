@@ -143,10 +143,19 @@ impl EndpointProxy {
         runtime.spawn(Box::pin(async move{
             let inner_pref = pref_clone;
             loop{
-                let pref_clone = EndpointProxyDriver(inner_pref.clone());
+                // let pref_clone = inner_pref.clone();
+                {
+                    let inner_lock =  inner_pref.0.state.lock().unwrap();
+                    if inner_lock.driver.is_some(){
+                        inner_lock.driver.as_ref().unwrap().wake_by_ref();
+                    }
+                    drop(inner_lock);
+                }
+                
+                
                 if let Ok(_) = tokio::time::timeout(
                     Duration::from_secs(10),
-                    pref_clone
+                    std::future::pending::<()>()
                 ).await{
                     debug!("tokio inner returned!");
                     return;
@@ -380,6 +389,7 @@ impl Future for EndpointProxyDriver {
 
 impl Drop for EndpointProxyDriver {
     fn drop(&mut self) {
+        debug!("dropping endpoint proxy driver");
         let mut endpoint = self.0.state.lock().unwrap();
         endpoint.driver_lost = true;
         self.0.shared.incoming.notify_waiters();
@@ -510,7 +520,7 @@ impl ProxyState {
 
         let result = loop {
             while self.outgoing.len() < BATCH_SIZE {
-                debug!("polling transmit");
+                // debug!("polling transmit");
                 match self.inner.poll_transmit() {
                     Some(t) => {
                         debug!("inner poll has packet: {}", t.destination);
