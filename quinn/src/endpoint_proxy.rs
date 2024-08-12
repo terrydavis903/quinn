@@ -361,7 +361,7 @@ impl Future for EndpointProxyDriver {
         }
 
         if endpoint.ref_count == 0 && endpoint.connections.is_empty() {
-            // debug!("returning from inner endpoint ref. all outstanding dropped");
+            debug!("returning from inner endpoint ref. all outstanding dropped");
             Poll::Ready(Ok(()))
         } else {
             drop(endpoint);

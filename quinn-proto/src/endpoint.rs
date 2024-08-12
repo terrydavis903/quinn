@@ -360,8 +360,8 @@ impl Endpoint {
         };
 
         debug!(
-            "sending stateless reset for {} to {}",
-            dst_cid, addresses.remote
+            "sending stateless reset for {} to {}. from: {:?}",
+            dst_cid, addresses.remote, addresses.local_ip
         );
         let mut buf = BytesMut::new();
         // Resets with at least this much padding can't possibly be distinguished from real packets
