@@ -128,8 +128,10 @@ impl EndpointProxy {
             addr.is_ipv6(),
             runtime.clone(),
         );
+        debug!("spawning endpoint proxy");
         let driver = EndpointProxyDriver(rc.clone());
         runtime.spawn(Box::pin(async {
+            debug!("endpoint proxy spawned. im inside closure");
             if let Err(e) = driver.await {
                 tracing::error!("I/O error: {}", e);
             }
@@ -321,15 +323,19 @@ impl Future for EndpointProxyDriver {
 
     #[allow(unused_mut)] // MSRV
     fn poll(mut self: Pin<&mut Self>, cx: &mut Context) -> Poll<Self::Output> {
+        debug!("polling endpoint proxy driver");
         let mut endpoint = self.0.state.lock().unwrap();
         if endpoint.driver.is_none() {
             endpoint.driver = Some(cx.waker().clone());
         }
 
+        debug!("staring sub drivers");
+
         let now = Instant::now();
         let mut keep_going = false;
         keep_going |= endpoint.drive_recv(cx, now)?;
         keep_going |= endpoint.handle_events(cx, &self.0.shared);
+        debug!("driving sender outer");
         keep_going |= endpoint.drive_send(cx)?;
 
         if !endpoint.incoming.is_empty() {
