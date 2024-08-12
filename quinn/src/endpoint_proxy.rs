@@ -399,7 +399,7 @@ pub(crate) struct ProxyState {
     /// The packet contents length in the outgoing queue.
     outgoing_queue_contents_len: usize,
 
-    last_heartbeat: Instant
+    // last_heartbeat: Instant
 }
 
 #[derive(Debug)]
@@ -500,19 +500,19 @@ impl ProxyState {
                         self.queue_transmit(t);
                     },
                     None => {
-                        if Instant::now().duration_since(self.last_heartbeat) > Duration::from_secs(5){
-                            debug!("added heartbeat");
-                            self.queue_transmit(Transmit{
-                                destination: SocketAddr::new(IpAddr::V4(Ipv4Addr::new(8,8,8,8)), 53),
-                                ecn: None,
-                                contents: Bytes::copy_from_slice(&hex::decode("12340100000100000000000005626169647503636f6d0000010001").unwrap()),
-                                segment_size: None,
-                                src_ip: None,
-                            });
-                            self.last_heartbeat = Instant::now();
-                        }else{
+                        // if Instant::now().duration_since(self.last_heartbeat) > Duration::from_secs(5){
+                        //     debug!("added heartbeat");
+                        //     self.queue_transmit(Transmit{
+                        //         destination: SocketAddr::new(IpAddr::V4(Ipv4Addr::new(8,8,8,8)), 53),
+                        //         ecn: None,
+                        //         contents: Bytes::copy_from_slice(&hex::decode("12340100000100000000000005626169647503636f6d0000010001").unwrap()),
+                        //         segment_size: None,
+                        //         src_ip: None,
+                        //     });
+                        //     self.last_heartbeat = Instant::now();
+                        // }else{
                             break
-                        }
+                        // }
                     },
                 }
             }
@@ -755,7 +755,7 @@ impl EndpointProxyRef {
                 send_limiter: WorkLimiter::new(SEND_TIME_BOUND),
                 runtime,
                 outgoing_queue_contents_len: 0,
-                last_heartbeat: Instant::now()
+                // last_heartbeat: Instant::now()
             }),
         }))
     }
