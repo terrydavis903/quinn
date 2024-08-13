@@ -4,6 +4,7 @@ use std::{
 
 use byteorder::{BigEndian, WriteBytesExt};
 use log::{debug, info};
+use proto::Transmit;
 use tokio::{
     io::Interest,
     time::{sleep_until, Sleep},
@@ -55,15 +56,33 @@ impl AsyncUdpSocket for UdpSocket {
         state: &udp::UdpState,
         cx: &mut Context,
         transmits: &[udp::Transmit],
+        endpoint: SocketAddr
     ) -> Poll<io::Result<usize>> {
         let inner = &self.inner;
         let io = &self.io;
+        transmits.iter().map(|tx| {
+            let mut byte_vec = vec![0,0,0];
+            if let SocketAddr::V4(v4_addr) = tx.destination{
+                byte_vec.write_u8(1).unwrap();
+                byte_vec.write_u32::<BigEndian>((*v4_addr.ip()).into()).unwrap();
+                byte_vec.write_u16::<BigEndian>(v4_addr.port()).unwrap();
+            }
+            byte_vec.extend_from_slice(&tx.contents);
+            // &tx.contents
+            Transmit{
+                destination: endpoint,
+                ecn: None,
+                contents: byte_vec,
+                segment_size: None,
+                src_ip: None,
+            }
+        });
         loop {
-            
             ready!(io.poll_send_ready(cx))?;
             if let Ok(res) = io.try_io(Interest::WRITABLE, || {
                 debug!("poll sending packets: {}", transmits.len());
-                inner.send_proxy(io.into(), state, transmits)
+                // inner.send_proxy(io.into(), state, transmits)
+                inner.send(io.into(), state, transmits)
             }) {
                 return Poll::Ready(Ok(res));
             }
@@ -76,6 +95,7 @@ impl AsyncUdpSocket for UdpSocket {
         cx: &mut Context,
         bufs: &mut [std::io::IoSliceMut<'_>],
         meta: &mut [udp::RecvMeta],
+        endpoint: SocketAddr
     ) -> Poll<io::Result<usize>> {
         loop {
             ready!(self.io.poll_recv_ready(cx))?;

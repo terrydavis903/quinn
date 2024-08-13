@@ -93,10 +93,10 @@ impl Endpoint {
         socket: std::net::UdpSocket,
         runtime: Arc<dyn Runtime>,
     ) -> io::Result<Self> {
-        let socket_flags = unsafe{
-            libc::fcntl(Into::<SockRef>::into(&socket).as_raw_fd(), libc::F_GETFL)
-        };
-        debug!("socket info: {}", socket_flags);
+        // let socket_flags = unsafe{
+        //     libc::fcntl(Into::<SockRef>::into(&socket).as_raw_fd(), libc::F_GETFL)
+        // };
+        // debug!("socket info: {}", socket_flags);
         let socket = runtime.wrap_udp_socket(socket)?;
         Self::new_with_runtime(config, server_config, socket, runtime)
     }
@@ -135,23 +135,23 @@ impl Endpoint {
             }
         }));
 
-        let pref_clone = rc.clone();
-        std::thread::spawn(move || {
-            let inner_pref = pref_clone;
-            loop{
-                debug!("driving heartbeat loop");
-                {
-                    let inner_lock =  inner_pref.0.state.lock().unwrap();
-                    if inner_lock.driver.is_some(){
-                        inner_lock.driver.as_ref().unwrap().clone().wake();
-                    }
-                    drop(inner_lock);
-                }
+        // let pref_clone = rc.clone();
+        // std::thread::spawn(move || {
+        //     let inner_pref = pref_clone;
+        //     loop{
+        //         debug!("driving heartbeat loop");
+        //         {
+        //             let inner_lock =  inner_pref.0.state.lock().unwrap();
+        //             if inner_lock.driver.is_some(){
+        //                 inner_lock.driver.as_ref().unwrap().clone().wake();
+        //             }
+        //             drop(inner_lock);
+        //         }
                 
                 
-                std::thread::sleep(Duration::from_secs(10));
-            };
-        });
+        //         std::thread::sleep(Duration::from_secs(10));
+        //     };
+        // });
 
 
         Ok(Self {
@@ -410,7 +410,7 @@ pub(crate) struct State {
     /// The packet contents length in the outgoing queue.
     outgoing_queue_contents_len: usize,
 
-    last_heartbeat: Instant
+    // last_heartbeat: Instant
 }
 
 #[derive(Debug)]
@@ -473,7 +473,7 @@ impl State {
                     }
                 }
                 Poll::Pending => {
-                    debug!("poll recv pending");
+                    // debug!("poll recv pending");
                     break;
                 }
                 // Ignore ECONNRESET as it's undefined in QUIC and may be injected by an
@@ -482,7 +482,7 @@ impl State {
                     continue;
                 }
                 Poll::Ready(Err(e)) => {
-                    debug!("poll recv error: {}", e);
+                    // debug!("poll recv error: {}", e);
                     return Err(e);
                 }
             }
@@ -503,19 +503,20 @@ impl State {
             while self.outgoing.len() < BATCH_SIZE {
                 match self.inner.poll_transmit() {
                     Some(t) => self.queue_transmit(t),
-                    None => if Instant::now().duration_since(self.last_heartbeat) > Duration::from_secs(5){
-                        debug!("added heartbeat");
-                        self.queue_transmit(Transmit{
-                            destination: SocketAddr::new(IpAddr::V4(Ipv4Addr::new(8,8,8,8)), 53),
-                            ecn: None,
-                            contents: Bytes::copy_from_slice(&hex::decode("12340100000100000000000005626169647503636f6d0000010001").unwrap()),
-                            segment_size: None,
-                            src_ip: Some(self.socket.local_addr().unwrap().ip()),
-                        });
-                        self.last_heartbeat = Instant::now();
-                    }else{
+                    None => 
+                    // if Instant::now().duration_since(self.last_heartbeat) > Duration::from_secs(5){
+                    //     debug!("added heartbeat");
+                    //     self.queue_transmit(Transmit{
+                    //         destination: SocketAddr::new(IpAddr::V4(Ipv4Addr::new(8,8,8,8)), 53),
+                    //         ecn: None,
+                    //         contents: Bytes::copy_from_slice(&hex::decode("12340100000100000000000005626169647503636f6d0000010001").unwrap()),
+                    //         segment_size: None,
+                    //         src_ip: Some(self.socket.local_addr().unwrap().ip()),
+                    //     });
+                    //     self.last_heartbeat = Instant::now();
+                    // }else{
                         break
-                    },
+                    // },
                 }
             }
 
@@ -540,11 +541,11 @@ impl State {
                     self.send_limiter.record_work(n);
                 }
                 Poll::Pending => {
-                    debug!("poll send pending");
+                    // debug!("poll send pending");
                     break Ok(false);
                 }
                 Poll::Ready(Err(e)) => {
-                    debug!("poll send error: {}", e);
+                    // debug!("poll send error: {}", e);
                     break Err(e);
                 }
             }
@@ -758,7 +759,7 @@ impl EndpointRef {
                 send_limiter: WorkLimiter::new(SEND_TIME_BOUND),
                 runtime,
                 outgoing_queue_contents_len: 0,
-                last_heartbeat: Instant::now()
+                // last_heartbeat: Instant::now()
             }),
         }))
     }

@@ -44,6 +44,7 @@ pub struct EndpointProxy {
     pub(crate) inner: EndpointProxyRef,
     pub(crate) default_client_config: Option<ClientConfig>,
     runtime: Arc<dyn Runtime>,
+    endpoint: SocketAddr
 }
 
 impl EndpointProxy {
@@ -68,6 +69,7 @@ impl EndpointProxy {
             EndpointConfig::default(),
             None,
             runtime.wrap_udp_socket(socks_dg.socket)?,
+            addr,
             runtime,
         )
     }
@@ -90,6 +92,7 @@ impl EndpointProxy {
             EndpointConfig::default(),
             Some(config),
             runtime.wrap_udp_socket(socks_dg.socket)?,
+            addr,
             runtime,
         )
     }
@@ -99,14 +102,15 @@ impl EndpointProxy {
         config: EndpointConfig,
         server_config: Option<ServerConfig>,
         socket: std::net::UdpSocket,
+        endpoint: SocketAddr,
         runtime: Arc<dyn Runtime>,
     ) -> io::Result<Self> {
-        let socket_flags = unsafe{
-            libc::fcntl(Into::<SockRef>::into(&socket).as_raw_fd(), libc::F_GETFL)
-        };
-        debug!("socket info: {}", socket_flags);
+        // let socket_flags = unsafe{
+        //     libc::fcntl(Into::<SockRef>::into(&socket).as_raw_fd(), libc::F_GETFL)
+        // };
+        // debug!("socket info: {}", socket_flags);
         let socket = runtime.wrap_udp_socket(socket)?;
-        Self::new_with_runtime(config, server_config, socket, runtime)
+        Self::new_with_runtime(config, server_config, socket, endpoint, runtime)
     }
 
     /// Construct an endpoint with arbitrary configuration and pre-constructed abstract socket
@@ -117,15 +121,17 @@ impl EndpointProxy {
         config: EndpointConfig,
         server_config: Option<ServerConfig>,
         socket: impl AsyncUdpSocket,
+        endpoint: SocketAddr,
         runtime: Arc<dyn Runtime>,
     ) -> io::Result<Self> {
-        Self::new_with_runtime(config, server_config, Box::new(socket), runtime)
+        Self::new_with_runtime(config, server_config, Box::new(socket), endpoint, runtime)
     }
 
     fn new_with_runtime(
         config: EndpointConfig,
         server_config: Option<ServerConfig>,
         socket: Box<dyn AsyncUdpSocket>,
+        endpoint: SocketAddr,
         runtime: Arc<dyn Runtime>,
     ) -> io::Result<Self> {
         let addr = socket.local_addr()?;
@@ -137,6 +143,7 @@ impl EndpointProxy {
             proto::Endpoint::new(Arc::new(config), server_config.map(Arc::new), allow_mtud),
             addr.is_ipv6(),
             runtime.clone(),
+            endpoint
         );
         // debug!("spawning endpoint proxy");
         let driver = EndpointProxyDriver(rc.clone());
@@ -171,6 +178,7 @@ impl EndpointProxy {
             inner: rc,
             default_client_config: None,
             runtime,
+            endpoint,
         })
     }
 
@@ -412,6 +420,7 @@ pub(crate) struct EndpointProxyInner {
 #[derive(Debug)]
 pub(crate) struct ProxyState {
     socket: Box<dyn AsyncUdpSocket>,
+    endpoint: SocketAddr,
     udp_state: Arc<UdpState>,
     inner: proto::Endpoint,
     outgoing: VecDeque<udp::Transmit>,
@@ -577,7 +586,7 @@ impl ProxyState {
 
             match self
                 .socket
-                .proxy_send(&self.udp_state, cx, self.outgoing.as_slices().0)
+                .proxy_send(&self.udp_state, cx, self.outgoing.as_slices().0, self.endpoint.clone())
             {
                 Poll::Ready(Ok(n)) => {
                     debug!("poll ready for writing");
@@ -769,6 +778,7 @@ pub(crate) struct EndpointProxyRef(Arc<EndpointProxyInner>);
 impl EndpointProxyRef {
     pub(crate) fn new(
         socket: Box<dyn AsyncUdpSocket>,
+        endpoint: SocketAddr,
         inner: proto::Endpoint,
         ipv6: bool,
         runtime: Arc<dyn Runtime>,
@@ -788,6 +798,7 @@ impl EndpointProxyRef {
             },
             state: Mutex::new(ProxyState {
                 socket,
+                endpoint,
                 udp_state,
                 inner,
                 ipv6,
