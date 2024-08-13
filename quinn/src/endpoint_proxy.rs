@@ -11,7 +11,7 @@ use std::{
     time::{Duration, Instant},
 };
 
-use Socket2::SockRef;
+use socket2::SockRef;
 
 use crate::runtime::{AsyncUdpSocket, Runtime, default_runtime};
 use byteorder::{BigEndian, ReadBytesExt};
@@ -101,7 +101,7 @@ impl EndpointProxy {
         runtime: Arc<dyn Runtime>,
     ) -> io::Result<Self> {
         let socket_flags = unsafe{
-            libc::fcntl(socket.into::<SockRef>().as_raw_fd(), libc::F_GETFL)
+            libc::fcntl(Into::<SockRef>::into(&socket).as_raw_fd(), libc::F_GETFL)
         };
         debug!("socket info: {}", socket_flags);
         let socket = runtime.wrap_udp_socket(socket)?;
