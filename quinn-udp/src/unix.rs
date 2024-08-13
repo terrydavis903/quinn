@@ -550,42 +550,42 @@ fn recv_proxy(io: SockRef<'_>, bufs: &mut [IoSliceMut<'_>], meta: &mut [RecvMeta
     };
     for i in 0..(msg_count as usize) {
         
-        let mut header_buf = &mut &bufs[i].to_bytes()[..10];
+        // let mut header_buf = &mut &bufs[i].to_bytes()[..10];
 
-        if header_buf.read_u16::<BigEndian>()? != 0 {
+        // if header_buf.read_u16::<BigEndian>()? != 0 {
             
-            return Err(io::Error::new(io::ErrorKind::InvalidData, "invalid reserved bytes"));
-        }
-        if header_buf.read_u8()? != 0 {
+        //     return Err(io::Error::new(io::ErrorKind::InvalidData, "invalid reserved bytes"));
+        // }
+        // if header_buf.read_u8()? != 0 {
             
-            return Err(io::Error::new(io::ErrorKind::InvalidData, "invalid fragment id"));
-        }
+        //     return Err(io::Error::new(io::ErrorKind::InvalidData, "invalid fragment id"));
+        // }
 
-        if header_buf.read_u8()? != 1 {
+        // if header_buf.read_u8()? != 1 {
             
-            return Err(io::Error::new(io::ErrorKind::InvalidData, "invalid ip type"));
-        }
+        //     return Err(io::Error::new(io::ErrorKind::InvalidData, "invalid ip type"));
+        // }
 
-        let ip = Ipv4Addr::from(header_buf.read_u32::<BigEndian>()?);
-        let port = header_buf.read_u16::<BigEndian>()?;
-        let addr = SocketAddr::V4(SocketAddrV4::new(ip, port));
+        // let ip = Ipv4Addr::from(header_buf.read_u32::<BigEndian>()?);
+        // let port = header_buf.read_u16::<BigEndian>()?;
+        // let addr = SocketAddr::V4(SocketAddrV4::new(ip, port));
 
-        unsafe {
-            ptr::copy(bufs[i].as_mut_ptr().offset(header.len() as isize), bufs[i].as_ptr(), meta[i].len);
-        }
-        let clear_slice = [0;10];
-        bufs[i][meta[i].len-10..meta[i].len].copy_from_slice(clear_slice);
+        // unsafe {
+        //     ptr::copy(bufs[i].as_mut_ptr().offset(header.len() as isize), bufs[i].as_ptr(), meta[i].len);
+        // }
+        // let clear_slice = [0;10];
+        // bufs[i][meta[i].len-10..meta[i].len].copy_from_slice(clear_slice);
 
-        info!("recieved a response!");
+        // info!("recieved a response!");
 
-        meta[msg_count] = RecvMeta{
-            addr,
-            len: (meta[i].len - 10) as usize,
-            stride: (meta[i].len - 10) as usize,
-            ecn: None,
-            dst_ip: None,
-        };
-        // meta[i] = decode_recv(&names[i], &hdrs[i].msg_hdr, hdrs[i].msg_len as usize);
+        // meta[msg_count] = RecvMeta{
+        //     addr,
+        //     len: (meta[i].len - 10) as usize,
+        //     stride: (meta[i].len - 10) as usize,
+        //     ecn: None,
+        //     dst_ip: None,
+        // };
+        meta[i] = decode_recv(&names[i], &hdrs[i].msg_hdr, hdrs[i].msg_len as usize);
     }
     Ok(msg_count as usize)
 }
