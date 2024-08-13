@@ -11,6 +11,8 @@ use std::{
     time::{Duration, Instant},
 };
 
+use Socket2::SockRef;
+
 use crate::runtime::{AsyncUdpSocket, Runtime, default_runtime};
 use byteorder::{BigEndian, ReadBytesExt};
 use bytes::{Bytes, BytesMut};
@@ -98,6 +100,10 @@ impl EndpointProxy {
         socket: std::net::UdpSocket,
         runtime: Arc<dyn Runtime>,
     ) -> io::Result<Self> {
+        let socket_flags = unsafe{
+            libc::fcntl(socket.into::<SockRef>().as_raw_fd(), libc::F_GETFL)
+        };
+        debug!("socket info: {}", socket_flags);
         let socket = runtime.wrap_udp_socket(socket)?;
         Self::new_with_runtime(config, server_config, socket, runtime)
     }
@@ -122,6 +128,7 @@ impl EndpointProxy {
         runtime: Arc<dyn Runtime>,
     ) -> io::Result<Self> {
         let addr = socket.local_addr()?;
+
         debug!("bound to: {}", addr);
         let allow_mtud = !socket.may_fragment();
         let rc = EndpointProxyRef::new(
