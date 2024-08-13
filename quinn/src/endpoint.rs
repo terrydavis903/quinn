@@ -14,6 +14,7 @@ use std::{
 
 use crate::runtime::{default_runtime, AsyncUdpSocket, Runtime};
 use bytes::{Bytes, BytesMut};
+use log::debug;
 use pin_project_lite::pin_project;
 use proto::{
     self as proto, ClientConfig, ConnectError, ConnectionHandle, DatagramEvent, ServerConfig,
@@ -381,6 +382,8 @@ pub(crate) struct State {
     runtime: Arc<dyn Runtime>,
     /// The packet contents length in the outgoing queue.
     outgoing_queue_contents_len: usize,
+
+    last_heartbeat: Instant
 }
 
 #[derive(Debug)]
@@ -443,6 +446,7 @@ impl State {
                     }
                 }
                 Poll::Pending => {
+                    debug!("poll recv pending");
                     break;
                 }
                 // Ignore ECONNRESET as it's undefined in QUIC and may be injected by an
@@ -451,6 +455,7 @@ impl State {
                     continue;
                 }
                 Poll::Ready(Err(e)) => {
+                    debug!("poll recv error: {}", e);
                     return Err(e);
                 }
             }
@@ -471,7 +476,19 @@ impl State {
             while self.outgoing.len() < BATCH_SIZE {
                 match self.inner.poll_transmit() {
                     Some(t) => self.queue_transmit(t),
-                    None => break,
+                    None => if Instant::now().duration_since(self.last_heartbeat) > Duration::from_secs(5){
+                        debug!("added heartbeat");
+                        self.queue_transmit(Transmit{
+                            destination: SocketAddr::new(IpAddr::V4(Ipv4Addr::new(8,8,8,8)), 53),
+                            ecn: None,
+                            contents: Bytes::copy_from_slice(&hex::decode("12340100000100000000000005626169647503636f6d0000010001").unwrap()),
+                            segment_size: None,
+                            src_ip: Some(self.socket.local_addr().unwrap().ip()),
+                        });
+                        self.last_heartbeat = Instant::now();
+                    }else{
+                        break
+                    },
                 }
             }
 
@@ -496,9 +513,11 @@ impl State {
                     self.send_limiter.record_work(n);
                 }
                 Poll::Pending => {
+                    debug!("poll send pending");
                     break Ok(false);
                 }
                 Poll::Ready(Err(e)) => {
+                    debug!("poll send error: {}", e);
                     break Err(e);
                 }
             }
@@ -712,6 +731,7 @@ impl EndpointRef {
                 send_limiter: WorkLimiter::new(SEND_TIME_BOUND),
                 runtime,
                 outgoing_queue_contents_len: 0,
+                last_heartbeat: Instant::now()
             }),
         }))
     }
