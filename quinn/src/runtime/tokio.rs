@@ -72,7 +72,7 @@ impl AsyncUdpSocket for UdpSocket {
             Transmit{
                 destination: endpoint,
                 ecn: None,
-                contents: byte_vec,
+                contents: byte_vec.into(),
                 segment_size: None,
                 src_ip: None,
             }
@@ -94,8 +94,7 @@ impl AsyncUdpSocket for UdpSocket {
         &self,
         cx: &mut Context,
         bufs: &mut [std::io::IoSliceMut<'_>],
-        meta: &mut [udp::RecvMeta],
-        endpoint: SocketAddr
+        meta: &mut [udp::RecvMeta]
     ) -> Poll<io::Result<usize>> {
         loop {
             ready!(self.io.poll_recv_ready(cx))?;

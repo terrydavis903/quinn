@@ -140,10 +140,10 @@ impl EndpointProxy {
         let allow_mtud = !socket.may_fragment();
         let rc = EndpointProxyRef::new(
             socket,
+            endpoint,
             proto::Endpoint::new(Arc::new(config), server_config.map(Arc::new), allow_mtud),
             addr.is_ipv6(),
-            runtime.clone(),
-            endpoint
+            runtime.clone()
         );
         // debug!("spawning endpoint proxy");
         let driver = EndpointProxyDriver(rc.clone());
