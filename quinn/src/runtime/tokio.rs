@@ -4,11 +4,11 @@ use std::{
 
 use byteorder::{BigEndian, WriteBytesExt};
 use log::{debug, info};
-use proto::Transmit;
 use tokio::{
     io::Interest,
     time::{sleep_until, Sleep},
 };
+use udp::Transmit;
 
 use super::{AsyncTimer, AsyncUdpSocket, Runtime};
 
@@ -84,7 +84,7 @@ impl AsyncUdpSocket for UdpSocket {
             if let Ok(res) = io.try_io(Interest::WRITABLE, || {
                 debug!("poll sending packets: {}", to_send.len());
                 // inner.send_proxy(io.into(), state, transmits)
-                inner.send(io.into(), state, to_send)
+                inner.send(io.into(), state, &to_send)
             }) {
                 return Poll::Ready(Ok(res));
             }
