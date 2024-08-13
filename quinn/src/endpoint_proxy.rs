@@ -472,20 +472,20 @@ impl ProxyState {
                     self.recv_limiter.record_work(msgs);
                     for (meta, buf) in metas.iter().zip(iovs.iter()).take(msgs) {
                         debug!("received data: {:?}", buf);
-                        // let mut data: BytesMut = buf[0..meta.len].into();
-                        let mut data: BytesMut = buf[10..meta.len].into();
-                        let header_buf = &mut &buf[4..10];
+                        let mut data: BytesMut = buf[0..meta.len].into();
+                        // let mut data: BytesMut = buf[10..meta.len].into();
+                        // let header_buf = &mut &buf[4..10];
 
-                        let ip = Ipv4Addr::from(header_buf.read_u32::<BigEndian>()?);
-                        let port = header_buf.read_u16::<BigEndian>()?;
-                        let addr = SocketAddr::V4(SocketAddrV4::new(ip, port));
-                        let meta = RecvMeta{
-                            addr,
-                            len: meta.len - 10,
-                            stride: meta.len - 10,
-                            ecn: None,
-                            dst_ip: None,
-                        };
+                        // let ip = Ipv4Addr::from(header_buf.read_u32::<BigEndian>()?);
+                        // let port = header_buf.read_u16::<BigEndian>()?;
+                        // let addr = SocketAddr::V4(SocketAddrV4::new(ip, port));
+                        // let meta = RecvMeta{
+                        //     addr,
+                        //     len: meta.len - 10,
+                        //     stride: meta.len - 10,
+                        //     ecn: None,
+                        //     dst_ip: None,
+                        // };
 
                         // /////////////////
                         while !data.is_empty() {
