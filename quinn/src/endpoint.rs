@@ -8,7 +8,7 @@ use std::{
     str,
     sync::{Arc, Mutex},
     task::{Context, Poll, Waker},
-    time::Instant,
+    time::{Duration, Instant},
 };
 
 use crate::runtime::{default_runtime, AsyncUdpSocket, Runtime};
