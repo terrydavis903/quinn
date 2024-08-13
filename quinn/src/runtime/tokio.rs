@@ -81,7 +81,8 @@ impl AsyncUdpSocket for UdpSocket {
             ready!(self.io.poll_recv_ready(cx))?;
             
             let io_res = self.io.try_io(Interest::READABLE, || {
-                self.inner.recv_proxy((&self.io).into(), bufs, meta)
+                // self.inner.recv_proxy((&self.io).into(), bufs, meta)
+                self.inner.recv((&self.io).into(), bufs, meta)
             });
             
             if let Ok(res) = io_res{
