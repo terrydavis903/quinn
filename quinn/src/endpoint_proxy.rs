@@ -532,7 +532,7 @@ impl ProxyState {
                     continue;
                 },
                 Poll::Ready(Err(ref e)) if e.kind() == io::ErrorKind::WouldBlock => {
-                    debug("recv wouldblock error, continuing");
+                    debug!("recv wouldblock error, continuing");
                     continue;
                 }
                 Poll::Ready(Err(e)) => {
