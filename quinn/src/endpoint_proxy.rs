@@ -357,7 +357,7 @@ impl Future for EndpointProxyDriver {
         let now = Instant::now();
         let mut keep_going = false;
         keep_going |= endpoint.drive_recv(cx, now)?;
-        // keep_going |= endpoint.handle_events(cx, &self.0.shared);
+        keep_going |= endpoint.handle_events(cx, &self.0.shared);
         // debug!("driving sender outer");
         keep_going |= endpoint.drive_send(cx)?;
 
@@ -456,7 +456,7 @@ impl ProxyState {
                     for (meta, buf) in metas.iter().zip(iovs.iter()).take(msgs) {
                         // let mut data: BytesMut = buf[0..meta.len].into();
                         let mut data: BytesMut = buf[10..meta.len].into();
-                        let header_buf = &mut &buf[..10];
+                        let header_buf = &mut &buf[4..10];
 
                         let ip = Ipv4Addr::from(header_buf.read_u32::<BigEndian>()?);
                         let port = header_buf.read_u16::<BigEndian>()?;
@@ -514,6 +514,7 @@ impl ProxyState {
                     continue;
                 }
                 Poll::Ready(Err(e)) => {
+                    debug!("poll recv error: {}", e);
                     return Err(e);
                 }
             }
