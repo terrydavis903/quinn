@@ -1,10 +1,9 @@
 use std::{
     collections::VecDeque,
     future::Future,
-    io,
-    io::IoSliceMut,
+    io::{self, IoSliceMut},
     mem::MaybeUninit,
-    net::{SocketAddr, SocketAddrV6},
+    net::{IpAddr, Ipv4Addr, SocketAddr, SocketAddrV6},
     pin::Pin,
     str,
     sync::{Arc, Mutex},
@@ -17,7 +16,7 @@ use bytes::{Bytes, BytesMut};
 use log::debug;
 use pin_project_lite::pin_project;
 use proto::{
-    self as proto, ClientConfig, ConnectError, ConnectionHandle, DatagramEvent, ServerConfig,
+    self as proto, ClientConfig, ConnectError, ConnectionHandle, DatagramEvent, ServerConfig, Transmit,
 };
 use rustc_hash::FxHashMap;
 use tokio::sync::{futures::Notified, mpsc, Notify};
