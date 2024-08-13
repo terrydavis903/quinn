@@ -519,50 +519,38 @@ fn recv(io: SockRef<'_>, bufs: &mut [IoSliceMut<'_>], meta: &mut [RecvMeta]) -> 
 
 #[cfg(not(any(target_os = "macos", target_os = "ios")))]
 fn recv_proxy(io: SockRef<'_>, bufs: &mut [IoSliceMut<'_>], meta: &mut [RecvMeta]) -> io::Result<usize> {
-    
+    let mut names = [MaybeUninit::<libc::sockaddr_storage>::uninit(); BATCH_SIZE];
+    let mut ctrls = [cmsg::Aligned(MaybeUninit::<[u8; CMSG_LEN]>::uninit()); BATCH_SIZE];
+    let mut hdrs = unsafe { mem::zeroed::<[libc::mmsghdr; BATCH_SIZE]>() };
     let max_msg_count = bufs.len().min(BATCH_SIZE);
-    let mut msg_count = 0;
-    while msg_count < max_msg_count {
-        let mut bytes_available = 0;
-        unsafe {
-            libc::ioctl(io.as_raw_fd(), libc::FIONREAD, &mut bytes_available);
-        }
-        if bytes_available == 0{
-            return Ok(msg_count)
-        }
-        info!("bytes available in proxy read: {}", bytes_available);
-        let mut header = [0; 10];
-        let buf = &mut bufs[msg_count];
-
-        let r = unsafe {
-            let mut iovecs = [
-                libc::iovec {
-                    iov_base: (&mut header).as_mut_ptr() as *mut _,
-                    iov_len: (&mut header).len(),
-                },
-                libc::iovec {
-                    iov_base: buf.as_mut_ptr() as *mut _,
-                    iov_len: buf.len(),
-                },
-            ];
-            libc::readv(io.as_raw_fd(), iovecs.as_mut_ptr(), 2)
+    for i in 0..max_msg_count {
+        prepare_recv(
+            &mut bufs[i],
+            &mut names[i],
+            &mut ctrls[i],
+            &mut hdrs[i].msg_hdr,
+        );
+    }
+    let msg_count = loop {
+        let n = unsafe {
+            recvmmsg_with_fallback(
+                io.as_raw_fd(),
+                hdrs.as_mut_ptr(),
+                bufs.len().min(BATCH_SIZE) as _,
+            )
         };
-
-        if r == -1 {
+        if n == -1 {
             let e = io::Error::last_os_error();
-            match e.kind() {
-                io::ErrorKind::Interrupted => {
-                    continue
-                },
-                _ => {
-                    info!("inner unix error: {}", e);
-                    return Err(e);
-                }
+            if e.kind() == io::ErrorKind::Interrupted {
+                continue;
             }
+            return Err(e);
         }
-
-
-        let mut header_buf = &mut &header[..];
+        break n;
+    };
+    for i in 0..(msg_count as usize) {
+        
+        let mut header_buf = &mut &bufs[i].to_bytes()[..10];
 
         if header_buf.read_u16::<BigEndian>()? != 0 {
             
@@ -582,25 +570,23 @@ fn recv_proxy(io: SockRef<'_>, bufs: &mut [IoSliceMut<'_>], meta: &mut [RecvMeta
         let port = header_buf.read_u16::<BigEndian>()?;
         let addr = SocketAddr::V4(SocketAddrV4::new(ip, port));
 
-        // unsafe {
-        //     ptr::copy(buf.as_ptr(), buf.as_mut_ptr().offset(header.len() as isize), overflow);
-        // }
-        // buf[..header.len()].copy_from_slice(header);
+        unsafe {
+            ptr::copy(bufs[i].as_mut_ptr().offset(header.len() as isize), bufs[i].as_ptr(), meta[i].len);
+        }
+        let clear_slice = [0;10];
+        bufs[i][meta[i].len-10..meta[i].len].copy_from_slice(clear_slice);
 
         info!("recieved a response!");
 
         meta[msg_count] = RecvMeta{
             addr,
-            len: (r - 10) as usize,
-            stride: (r - 10) as usize,
+            len: (meta[i].len - 10) as usize,
+            stride: (meta[i].len - 10) as usize,
             ecn: None,
             dst_ip: None,
         };
-
-        msg_count += 1;
-    };
-    
-    info!("read {} messages, returning from inner unix2!", msg_count);
+        // meta[i] = decode_recv(&names[i], &hdrs[i].msg_hdr, hdrs[i].msg_len as usize);
+    }
     Ok(msg_count as usize)
 }
 
