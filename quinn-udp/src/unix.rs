@@ -352,7 +352,6 @@ fn send_proxy(
                     // - Destination unreachable errors have been observed for other
                     log_sendmsg_error(last_send_error, e, &transmits[sent_msg]);
                     sent_msg -= 1;
-                    return Err(e)
                 }
             }
         }
