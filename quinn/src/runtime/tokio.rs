@@ -60,7 +60,8 @@ impl AsyncUdpSocket for UdpSocket {
     ) -> Poll<io::Result<usize>> {
         let inner = &self.inner;
         let io = &self.io;
-        transmits.iter().map(|tx| {
+        
+        let to_send = transmits.iter().map(|tx| {
             let mut byte_vec = vec![0,0,0];
             if let SocketAddr::V4(v4_addr) = tx.destination{
                 byte_vec.write_u8(1).unwrap();
@@ -77,12 +78,13 @@ impl AsyncUdpSocket for UdpSocket {
                 src_ip: None,
             }
         });
+
         loop {
             ready!(io.poll_send_ready(cx))?;
             if let Ok(res) = io.try_io(Interest::WRITABLE, || {
-                debug!("poll sending packets: {}", transmits.len());
+                debug!("poll sending packets: {}", to_send.len());
                 // inner.send_proxy(io.into(), state, transmits)
-                inner.send(io.into(), state, transmits)
+                inner.send(io.into(), state, to_send)
             }) {
                 return Poll::Ready(Ok(res));
             }
@@ -100,8 +102,8 @@ impl AsyncUdpSocket for UdpSocket {
             ready!(self.io.poll_recv_ready(cx))?;
             
             let io_res = self.io.try_io(Interest::READABLE, || {
-                self.inner.recv_proxy((&self.io).into(), bufs, meta)
-                // self.inner.recv((&self.io).into(), bufs, meta)
+                // self.inner.recv_proxy((&self.io).into(), bufs, meta)
+                self.inner.recv((&self.io).into(), bufs, meta)
             });
             
             if let Ok(res) = io_res{
