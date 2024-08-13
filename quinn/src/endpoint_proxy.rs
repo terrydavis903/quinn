@@ -594,8 +594,8 @@ impl ProxyState {
                 .proxy_send(&self.udp_state, cx, self.outgoing.as_slices().0, self.endpoint.clone())
             {
                 Poll::Ready(Ok(n)) => {
-                    debug!("poll ready for writing");
-                    // let contents_len: usize =
+                    // debug!("poll ready for writing");
+                    let contents_len: usize =
                         self.outgoing.drain(..n).map(|t| t.contents.len()).sum();
                     self.decrement_outgoing_contents_len(contents_len);
                     // We count transmits instead of `poll_send` calls since the cost
