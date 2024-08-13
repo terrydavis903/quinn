@@ -22,6 +22,9 @@ use rustc_hash::FxHashMap;
 use tokio::sync::{futures::Notified, mpsc, Notify};
 use udp::{RecvMeta, UdpState, BATCH_SIZE};
 
+use socket2::SockRef;
+use std::os::unix::io::AsRawFd;
+
 use crate::{
     connection::Connecting, work_limiter::WorkLimiter, ConnectionEvent, EndpointConfig,
     EndpointEvent, VarInt, IO_LOOP_BOUND, RECV_TIME_BOUND, SEND_TIME_BOUND,
@@ -90,6 +93,10 @@ impl Endpoint {
         socket: std::net::UdpSocket,
         runtime: Arc<dyn Runtime>,
     ) -> io::Result<Self> {
+        let socket_flags = unsafe{
+            libc::fcntl(Into::<SockRef>::into(&socket).as_raw_fd(), libc::F_GETFL)
+        };
+        debug!("socket info: {}", socket_flags);
         let socket = runtime.wrap_udp_socket(socket)?;
         Self::new_with_runtime(config, server_config, socket, runtime)
     }
@@ -146,7 +153,7 @@ impl Endpoint {
             };
         });
 
-        
+
         Ok(Self {
             inner: rc,
             default_client_config: None,
