@@ -77,7 +77,7 @@ impl AsyncUdpSocket for UdpSocket {
                 segment_size: None,
                 src_ip: None,
             }
-        });
+        }).collect::<Vec<Transmit>>();
 
         loop {
             ready!(io.poll_send_ready(cx))?;
