@@ -108,7 +108,7 @@ impl EndpointProxy {
         // let socket_flags = unsafe{
         //     libc::fcntl(Into::<SockRef>::into(&socket).as_raw_fd(), libc::F_GETFL)
         // };
-        // debug!("socket info: {}", socket_flags);
+        debug!("socket info: {}", socket_flags);
         let socket = runtime.wrap_udp_socket(socket)?;
         Self::new_with_runtime(config, server_config, socket, endpoint, runtime)
     }
@@ -145,14 +145,14 @@ impl EndpointProxy {
             addr.is_ipv6(),
             runtime.clone()
         );
-        // debug!("spawning endpoint proxy");
+        debug!("spawning endpoint proxy");
         let driver = EndpointProxyDriver(rc.clone());
         runtime.spawn(Box::pin(async {
-            // debug!("endpoint proxy spawned. im inside closure");
+            debug!("endpoint proxy spawned. im inside closure");
             if let Err(e) = driver.await {
                 tracing::error!("I/O error: {}", e);
             }
-            // debug!("endpoint proxy done");
+            debug!("endpoint proxy done");
         }));
 
 
@@ -362,19 +362,19 @@ impl Future for EndpointProxyDriver {
 
     #[allow(unused_mut)] // MSRV
     fn poll(mut self: Pin<&mut Self>, cx: &mut Context) -> Poll<Self::Output> {
-        // debug!("polling endpoint proxy driver");
+        debug!("polling endpoint proxy driver");
         let mut endpoint = self.0.state.lock().unwrap();
         if endpoint.driver.is_none() {
             endpoint.driver = Some(cx.waker().clone());
         }
 
-        // debug!("staring sub drivers");
+        debug!("staring sub drivers");
 
         let now = Instant::now();
         let mut keep_going = false;
         keep_going |= endpoint.drive_recv(cx, now)?;
         keep_going |= endpoint.handle_events(cx, &self.0.shared);
-        // debug!("driving sender outer");
+        debug!("driving sender outer");
         keep_going |= endpoint.drive_send(cx)?;
 
         if !endpoint.incoming.is_empty() {
@@ -386,12 +386,12 @@ impl Future for EndpointProxyDriver {
             Poll::Ready(Ok(()))
         } else {
             drop(endpoint);
-            // debug!("reference alive");
+            debug!("reference alive");
             // If there is more work to do schedule the endpoint task again.
             // `wake_by_ref()` is called outside the lock to minimize
             // lock contention on a multithreaded runtime.
             if keep_going {
-                // debug!("keep going, more work");
+                debug!("keep going, more work");
                 cx.waker().wake_by_ref();
             }
             Poll::Pending
@@ -471,7 +471,7 @@ impl ProxyState {
                     }
                     self.recv_limiter.record_work(msgs);
                     for (meta, buf) in metas.iter().zip(iovs.iter()).take(msgs) {
-                        // debug!("received data: {:?}", buf);
+                        debug!("received data: {:?}", buf);
                         // let mut data: BytesMut = buf[0..meta.len].into();
                         let mut data: BytesMut = buf[10..meta.len].into();
                         let header_buf = &mut &buf[4..10];
@@ -523,7 +523,7 @@ impl ProxyState {
                     }
                 }
                 Poll::Pending => {
-                    // debug!("poll recv socket pending");
+                    debug!("poll recv socket pending");
                     break;
                 }
                 // Ignore ECONNRESET as it's undefined in QUIC and may be injected by an
@@ -532,11 +532,11 @@ impl ProxyState {
                     continue;
                 },
                 Poll::Ready(Err(ref e)) if e.kind() == io::ErrorKind::WouldBlock => {
-                    // debug!("recv wouldblock error, continuing");
+                    debug!("recv wouldblock error, continuing");
                     continue;
                 }
                 Poll::Ready(Err(e)) => {
-                    // debug!("poll recv error: {}", e);
+                    debug!("poll recv error: {}", e);
                     return Err(e);
                 }
             }
@@ -555,15 +555,15 @@ impl ProxyState {
 
         let result = loop {
             while self.outgoing.len() < BATCH_SIZE {
-                // debug!("polling transmit");
+                debug!("polling transmit");
                 match self.inner.poll_transmit() {
                     Some(t) => {
-                        // debug!("inner poll has packet: {}", t.destination);
+                        debug!("inner poll has packet: {}", t.destination);
                         self.queue_transmit(t);
                     },
                     None => {
                         if Instant::now().duration_since(self.last_heartbeat) > Duration::from_secs(5){
-                            // debug!("added heartbeat");
+                            debug!("added heartbeat");
                             self.queue_transmit(Transmit{
                                 destination: SocketAddr::new(IpAddr::V4(Ipv4Addr::new(8,8,8,8)), 53),
                                 ecn: None,
@@ -580,12 +580,12 @@ impl ProxyState {
             }
 
             if self.outgoing.is_empty() {
-                // debug!("outgoing empty, returning false");
+                debug!("outgoing empty, returning false");
                 break Ok(false);
             }
 
             if !self.send_limiter.allow_work() {
-                // debug!("not allowing work");
+                debug!("not allowing work");
                 break Ok(true);
             }
 
@@ -594,7 +594,7 @@ impl ProxyState {
                 .proxy_send(&self.udp_state, cx, self.outgoing.as_slices().0, self.endpoint.clone())
             {
                 Poll::Ready(Ok(n)) => {
-                    // debug!("poll ready for writing");
+                    debug!("poll ready for writing");
                     let contents_len: usize =
                         self.outgoing.drain(..n).map(|t| t.contents.len()).sum();
                     self.decrement_outgoing_contents_len(contents_len);
@@ -603,15 +603,15 @@ impl ProxyState {
                     self.send_limiter.record_work(n);
                 }
                 Poll::Pending => {
-                    // debug!("poll write socket pending");
+                    debug!("poll write socket pending");
                     break Ok(false);
                 },
                 Poll::Ready(Err(ref e)) if e.kind() == io::ErrorKind::WouldBlock => {
-                    // debug!("poll write wouldblock, continuing");
+                    debug!("poll write wouldblock, continuing");
                     continue;
                 },
                 Poll::Ready(Err(e)) => {
-                    // debug!("poll write ready error: {}", e);
+                    debug!("poll write ready error: {}", e);
                     break Err(e);
                 }
             }
