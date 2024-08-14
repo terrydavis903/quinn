@@ -160,7 +160,7 @@ impl EndpointProxy {
         tokio::task::spawn(async move{
             let inner_pref = pref_clone;
             loop{
-                // debug!("driving heartbeat loop");
+                debug!("driving heartbeat loop");
                 {
                     let inner_lock =  inner_pref.0.state.lock().unwrap();
                     if inner_lock.driver.is_some(){
