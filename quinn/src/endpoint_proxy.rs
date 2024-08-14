@@ -157,7 +157,7 @@ impl EndpointProxy {
 
 
         let pref_clone = rc.clone();
-        tokio::task::spawn(async move{
+        std::thread::spawn( move ||{
             let inner_pref = pref_clone;
             loop{
                 debug!("driving heartbeat loop");
