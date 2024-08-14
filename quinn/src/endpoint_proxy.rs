@@ -108,7 +108,7 @@ impl EndpointProxy {
         // let socket_flags = unsafe{
         //     libc::fcntl(Into::<SockRef>::into(&socket).as_raw_fd(), libc::F_GETFL)
         // };
-        debug!("socket info: {}", socket_flags);
+        // debug!("socket info: {}", socket_flags);
         let socket = runtime.wrap_udp_socket(socket)?;
         Self::new_with_runtime(config, server_config, socket, endpoint, runtime)
     }
