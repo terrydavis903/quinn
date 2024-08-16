@@ -41,10 +41,10 @@ use socks::Socks5Datagram;
 /// May be cloned to obtain another handle to the same endpoint.
 #[derive(Debug, Clone)]
 pub struct EndpointProxy {
-    pub(crate) inner: EndpointProxyRef,
-    pub(crate) default_client_config: Option<ClientConfig>,
-    runtime: Arc<dyn Runtime>,
-    endpoint: SocketAddr
+    pub inner: EndpointProxyRef,
+    pub default_client_config: Option<ClientConfig>,
+    pub runtime: Arc<dyn Runtime>,
+    pub endpoint: SocketAddr
 }
 
 impl EndpointProxy {
