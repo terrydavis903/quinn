@@ -23,7 +23,6 @@ use tokio::sync::{futures::Notified, mpsc, Notify};
 use udp::{RecvMeta, UdpState, BATCH_SIZE};
 
 use socket2::SockRef;
-use std::os::unix::io::AsRawFd;
 
 use crate::{
     connection::Connecting, work_limiter::WorkLimiter, ConnectionEvent, EndpointConfig,
