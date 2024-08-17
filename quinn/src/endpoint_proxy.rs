@@ -336,7 +336,7 @@ impl EndpointProxy {
 /// an I/O error occurs.
 #[must_use = "endpoint drivers must be spawned for I/O to occur"]
 #[derive(Debug)]
-pub(crate) struct EndpointProxyDriver(pub(crate) EndpointProxyRef);
+pub struct EndpointProxyDriver(pub EndpointProxyRef);
 
 impl Future for EndpointProxyDriver {
     type Output = Result<(), io::Error>;
@@ -393,13 +393,13 @@ impl Drop for EndpointProxyDriver {
 }
 
 #[derive(Debug)]
-pub(crate) struct EndpointProxyInner {
-    pub(crate) state: Mutex<ProxyState>,
-    pub(crate) shared: Shared,
+pub struct EndpointProxyInner {
+    pub state: Mutex<ProxyState>,
+    pub shared: Shared,
 }
 
 #[derive(Debug)]
-pub(crate) struct ProxyState {
+pub struct ProxyState {
     socket: Box<dyn AsyncUdpSocket>,
     endpoint: SocketAddr,
     udp_state: Arc<UdpState>,
@@ -424,7 +424,7 @@ pub(crate) struct ProxyState {
 }
 
 #[derive(Debug)]
-pub(crate) struct Shared {
+pub struct Shared {
     incoming: Notify,
     idle: Notify,
 }
@@ -764,10 +764,10 @@ impl<'a> Future for ProxyAccept<'a> {
 }
 
 #[derive(Debug)]
-pub(crate) struct EndpointProxyRef(Arc<EndpointProxyInner>);
+pub struct EndpointProxyRef(Arc<EndpointProxyInner>);
 
 impl EndpointProxyRef {
-    pub(crate) fn new(
+    pub fn new(
         socket: Box<dyn AsyncUdpSocket>,
         endpoint: SocketAddr,
         inner: proto::Endpoint,
