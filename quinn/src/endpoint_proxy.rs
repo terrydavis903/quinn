@@ -30,7 +30,7 @@ use crate::{
     EndpointEvent, VarInt, IO_LOOP_BOUND, RECV_TIME_BOUND, SEND_TIME_BOUND,
 };
 
-use socks::Socks5Datagram;
+use socks::{Socks5Datagram, Socks5Stream};
 
 /// A QUIC endpoint.
 ///
@@ -43,7 +43,8 @@ pub struct EndpointProxy {
     pub inner: EndpointProxyRef,
     pub default_client_config: Option<ClientConfig>,
     pub runtime: Arc<dyn Runtime>,
-    pub endpoint: SocketAddr
+    pub endpoint: SocketAddr,
+    pub stream: Arc<Socks5Stream>
 }
 
 impl EndpointProxy {
@@ -162,8 +163,6 @@ impl EndpointProxy {
         let driver = EndpointProxyDriver(rc.clone());
         runtime.spawn(Box::pin(async {
 
-            dg.stream;
-
             debug!("endpoint proxy spawned. im inside closure");
             if let Err(e) = driver.await {
                 tracing::error!("I/O error: {}", e);
@@ -176,6 +175,7 @@ impl EndpointProxy {
             default_client_config: None,
             runtime,
             endpoint,
+            stream: Arc::new(dg.stream)
         })
     }
 
