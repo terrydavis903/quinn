@@ -154,25 +154,6 @@ impl EndpointProxy {
             }
             debug!("endpoint proxy done");
         }));
-
-
-        let pref_clone = rc.clone();
-        std::thread::spawn( move ||{
-            let inner_pref = pref_clone;
-            loop{
-                debug!("driving heartbeat loop");
-                {
-                    let inner_lock =  inner_pref.0.state.lock().unwrap();
-                    if inner_lock.driver.is_some(){
-                        inner_lock.driver.as_ref().unwrap().clone().wake();
-                    }
-                    drop(inner_lock);
-                }
-                
-                
-                std::thread::sleep(Duration::from_secs(10));
-            };
-        });
         
         Ok(Self {
             inner: rc,
