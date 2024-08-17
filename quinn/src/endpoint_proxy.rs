@@ -400,27 +400,27 @@ pub struct EndpointProxyInner {
 
 #[derive(Debug)]
 pub struct ProxyState {
-    socket: Box<dyn AsyncUdpSocket>,
-    endpoint: SocketAddr,
-    udp_state: Arc<UdpState>,
-    inner: proto::Endpoint,
-    outgoing: VecDeque<udp::Transmit>,
-    incoming: VecDeque<Connecting>,
-    driver: Option<Waker>,
-    ipv6: bool,
-    connections: ProxyConnectionSet,
-    events: mpsc::UnboundedReceiver<(ConnectionHandle, EndpointEvent)>,
+    pub socket: Box<dyn AsyncUdpSocket>,
+    pub endpoint: SocketAddr,
+    pub udp_state: Arc<UdpState>,
+    pub inner: proto::Endpoint,
+    pub outgoing: VecDeque<udp::Transmit>,
+    pub incoming: VecDeque<Connecting>,
+    pub driver: Option<Waker>,
+    pub ipv6: bool,
+    pub connections: ProxyConnectionSet,
+    pub events: mpsc::UnboundedReceiver<(ConnectionHandle, EndpointEvent)>,
     /// Number of live handles that can be used to initiate or handle I/O; excludes the driver
-    ref_count: usize,
-    driver_lost: bool,
-    recv_limiter: WorkLimiter,
-    recv_buf: Box<[u8]>,
-    send_limiter: WorkLimiter,
-    runtime: Arc<dyn Runtime>,
+    pub ref_count: usize,
+    pub driver_lost: bool,
+    pub recv_limiter: WorkLimiter,
+    pub recv_buf: Box<[u8]>,
+    pub send_limiter: WorkLimiter,
+    pub runtime: Arc<dyn Runtime>,
     /// The packet contents length in the outgoing queue.
-    outgoing_queue_contents_len: usize,
+    pub outgoing_queue_contents_len: usize,
 
-    last_heartbeat: Instant
+    pub last_heartbeat: Instant
 }
 
 #[derive(Debug)]
@@ -764,7 +764,7 @@ impl<'a> Future for ProxyAccept<'a> {
 }
 
 #[derive(Debug)]
-pub struct EndpointProxyRef(Arc<EndpointProxyInner>);
+pub struct EndpointProxyRef(pub Arc<EndpointProxyInner>);
 
 impl EndpointProxyRef {
     pub fn new(
