@@ -12,7 +12,6 @@ use std::{
 };
 
 use socket2::SockRef;
-use std::os::unix::io::AsRawFd;
 
 use crate::runtime::{AsyncUdpSocket, Runtime, default_runtime};
 use byteorder::{BigEndian, ReadBytesExt};
