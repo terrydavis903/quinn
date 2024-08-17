@@ -168,6 +168,8 @@ impl EndpointProxy {
             }
             debug!("endpoint proxy done");
         }));
+
+        let v = dg.stream;
         
         Ok(Self {
             inner: rc,
