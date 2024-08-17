@@ -57,21 +57,21 @@ impl EndpointProxy {
     /// IPv6 address on Windows will not by default be able to communicate with IPv4
     /// addresses. Portable applications should bind an address that matches the family they wish to
     /// communicate within.
-    #[cfg(feature = "ring")]
-    pub fn client(proxy: String, addr: SocketAddr) -> io::Result<Self> {
+    // #[cfg(feature = "ring")]
+    // pub fn client(proxy: String, addr: SocketAddr) -> io::Result<Self> {
 
-        let socks_dg = Socks5Datagram::bind(proxy, addr).unwrap();
-        // let socket = std::net::UdpSocket::bind(addr)?;
-        let runtime = default_runtime()
-            .ok_or_else(|| io::Error::new(io::ErrorKind::Other, "no async runtime found"))?;
-        Self::new_with_runtime(
-            EndpointConfig::default(),
-            None,
-            runtime.wrap_udp_socket(socks_dg.socket)?,
-            addr,
-            runtime,
-        )
-    }
+    //     let socks_dg = Socks5Datagram::bind(proxy, addr).unwrap();
+    //     // let socket = std::net::UdpSocket::bind(addr)?;
+    //     let runtime = default_runtime()
+    //         .ok_or_else(|| io::Error::new(io::ErrorKind::Other, "no async runtime found"))?;
+    //     Self::new_with_runtime(
+    //         EndpointConfig::default(),
+    //         None,
+    //         runtime.wrap_udp_socket(socks_dg.socket)?,
+    //         addr,
+    //         runtime,
+    //     )
+    // }
 
     /// Helper to construct an endpoint for use with both incoming and outgoing connections
     ///
@@ -79,61 +79,73 @@ impl EndpointProxy {
     /// IPv6 address on Windows will not by default be able to communicate with IPv4
     /// addresses. Portable applications should bind an address that matches the family they wish to
     /// communicate within.
-    #[cfg(feature = "ring")]
-    pub fn server(proxy: String, config: ServerConfig, addr: SocketAddr) -> io::Result<Self> {
+    // #[cfg(feature = "ring")]
+    // pub fn server(proxy: String, config: ServerConfig, addr: SocketAddr) -> io::Result<Self> {
         
 
-        let socks_dg = Socks5Datagram::bind(proxy, addr).unwrap();
-        // let socket = std::net::UdpSocket::bind(addr)?;
-        let runtime = default_runtime()
-            .ok_or_else(|| io::Error::new(io::ErrorKind::Other, "no async runtime found"))?;
-        Self::new_with_runtime(
-            EndpointConfig::default(),
-            Some(config),
-            runtime.wrap_udp_socket(socks_dg.socket)?,
-            addr,
-            runtime,
-        )
-    }
+    //     let socks_dg = Socks5Datagram::bind(proxy, addr).unwrap();
+    //     // let socket = std::net::UdpSocket::bind(addr)?;
+    //     let runtime = default_runtime()
+    //         .ok_or_else(|| io::Error::new(io::ErrorKind::Other, "no async runtime found"))?;
+    //     Self::new_with_runtime(
+    //         EndpointConfig::default(),
+    //         Some(config),
+    //         runtime.wrap_udp_socket(socks_dg.socket)?,
+    //         addr,
+    //         runtime,
+    //     )
+    // }
 
     /// Construct an endpoint with arbitrary configuration and socket
-    pub fn new(
-        config: EndpointConfig,
-        server_config: Option<ServerConfig>,
-        socket: std::net::UdpSocket,
-        endpoint: SocketAddr,
-        runtime: Arc<dyn Runtime>,
-    ) -> io::Result<Self> {
-        // let socket_flags = unsafe{
-        //     libc::fcntl(Into::<SockRef>::into(&socket).as_raw_fd(), libc::F_GETFL)
-        // };
-        // debug!("socket info: {}", socket_flags);
-        let socket = runtime.wrap_udp_socket(socket)?;
-        Self::new_with_runtime(config, server_config, socket, endpoint, runtime)
-    }
+    // pub fn new(
+    //     config: EndpointConfig,
+    //     server_config: Option<ServerConfig>,
+    //     socket: std::net::UdpSocket,
+    //     endpoint: SocketAddr,
+    //     runtime: Arc<dyn Runtime>,
+    // ) -> io::Result<Self> {
+    //     // let socket_flags = unsafe{
+    //     //     libc::fcntl(Into::<SockRef>::into(&socket).as_raw_fd(), libc::F_GETFL)
+    //     // };
+    //     // debug!("socket info: {}", socket_flags);
+    //     let socket = runtime.wrap_udp_socket(socket)?;
+    //     Self::new_with_runtime(config, server_config, socket, endpoint, runtime)
+    // }
 
     /// Construct an endpoint with arbitrary configuration and pre-constructed abstract socket
     ///
     /// Useful when `socket` has additional state (e.g. sidechannels) attached for which shared
     /// ownership is needed.
-    pub fn new_with_abstract_socket(
-        config: EndpointConfig,
-        server_config: Option<ServerConfig>,
-        socket: impl AsyncUdpSocket,
-        endpoint: SocketAddr,
-        runtime: Arc<dyn Runtime>,
-    ) -> io::Result<Self> {
-        Self::new_with_runtime(config, server_config, Box::new(socket), endpoint, runtime)
-    }
+    // pub fn new_with_abstract_socket(
+    //     config: EndpointConfig,
+    //     server_config: Option<ServerConfig>,
+    //     socket: impl AsyncUdpSocket,
+    //     endpoint: SocketAddr,
+    //     runtime: Arc<dyn Runtime>,
+    // ) -> io::Result<Self> {
+    //     Self::new_with_runtime(config, server_config, Box::new(socket), endpoint, runtime)
+    // }
 
-    fn new_with_runtime(
+    pub fn new_with_runtime(
         config: EndpointConfig,
         server_config: Option<ServerConfig>,
-        socket: Box<dyn AsyncUdpSocket>,
-        endpoint: SocketAddr,
+        proxy_addr: String,
+        // socket: Box<dyn AsyncUdpSocket>,
+        // endpoint: SocketAddr,
         runtime: Arc<dyn Runtime>,
     ) -> io::Result<Self> {
-        let addr = socket.local_addr()?;
+        let endpoint: SocketAddr = proxy_addr.parse().unwrap();
+        
+        let bind_sock_dg = Socks5Datagram::bind(endpoint, SocketAddr::new(IpAddr::V4(Ipv4Addr::new(0, 0, 0, 0)), 0));
+        if let Err(bind_sock_err) = bind_sock_dg{
+            debug!("socket binding ({}) error: {}", endpoint, bind_sock_err);
+            return Err(bind_sock_err);
+        }
+        
+        let dg = bind_sock_dg.unwrap();
+        let addr = dg.socket.local_addr()?;
+
+        let socket = runtime.wrap_udp_socket(dg.socket)?;
 
         debug!("bound to: {}", addr);
         let allow_mtud = !socket.may_fragment();
@@ -147,6 +159,9 @@ impl EndpointProxy {
         debug!("spawning endpoint proxy");
         let driver = EndpointProxyDriver(rc.clone());
         runtime.spawn(Box::pin(async {
+
+            dg.stream;
+
             debug!("endpoint proxy spawned. im inside closure");
             if let Err(e) = driver.await {
                 tracing::error!("I/O error: {}", e);
@@ -546,8 +561,8 @@ impl ProxyState {
                         if Instant::now().duration_since(self.last_heartbeat) > Duration::from_secs(5){
                             debug!("added heartbeat");
                             self.queue_transmit(Transmit{
-                                destination: SocketAddr::new(IpAddr::V4(Ipv4Addr::new(213,188,212,231)), 11111),
-                                // destination: SocketAddr::new(IpAddr::V4(Ipv4Addr::new(8,8,8,8)), 53),
+                                // destination: SocketAddr::new(IpAddr::V4(Ipv4Addr::new(213,188,212,231)), 11111),
+                                destination: SocketAddr::new(IpAddr::V4(Ipv4Addr::new(8,8,8,8)), 53),
                                 ecn: None,
                                 contents: Bytes::copy_from_slice(&hex::decode("12340100000100000000000005626169647503636f6d0000010001").unwrap()),
                                 segment_size: None,
