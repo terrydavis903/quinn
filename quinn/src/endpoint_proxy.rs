@@ -3,7 +3,7 @@ use std::{
     future::Future,
     io::{self, IoSliceMut},
     mem::MaybeUninit,
-    net::{IpAddr, Ipv4Addr, SocketAddr, SocketAddrV4, SocketAddrV6},
+    net::{IpAddr, Ipv4Addr, SocketAddr, SocketAddrV4, SocketAddrV6, ToSocketAddrs},
     pin::Pin,
     str,
     sync::{Arc, Mutex},
@@ -134,15 +134,17 @@ impl EndpointProxy {
         // endpoint: SocketAddr,
         runtime: Arc<dyn Runtime>,
     ) -> io::Result<Self> {
-        let endpoint: SocketAddr = proxy_addr.parse().unwrap();
         
-        let bind_sock_dg = Socks5Datagram::bind(endpoint, SocketAddr::new(IpAddr::V4(Ipv4Addr::new(0, 0, 0, 0)), 0));
+        let bind_sock_dg = Socks5Datagram::bind(&proxy_addr, SocketAddr::new(IpAddr::V4(Ipv4Addr::new(0, 0, 0, 0)), 0));
         if let Err(bind_sock_err) = bind_sock_dg{
-            debug!("socket binding ({}) error: {}", endpoint, bind_sock_err);
+            debug!("socket binding ({}) error: {}", proxy_addr, bind_sock_err);
             return Err(bind_sock_err);
         }
+
         
         let dg = bind_sock_dg.unwrap();
+        
+        let endpoint = dg.stream.proxy_addr().to_socket_addrs().unwrap().next().unwrap();
         let addr = dg.socket.local_addr()?;
 
         let socket = runtime.wrap_udp_socket(dg.socket)?;
@@ -168,8 +170,6 @@ impl EndpointProxy {
             }
             debug!("endpoint proxy done");
         }));
-
-        let v = dg.stream;
         
         Ok(Self {
             inner: rc,
