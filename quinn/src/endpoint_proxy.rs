@@ -37,8 +37,8 @@ pub struct ProxyTcpStream{
 
 // strictly tcp communication to proxy main stream
 impl ProxyTcpStream{
-    pub fn new(proxy_tcp_addr: SocketAddr) -> Self{
-        let tcp_stream = TcpStream::connect(proxy_tcp_addr).unwrap();
+    pub fn new(proxy_tcp_addr: SocketAddr) -> io::Result<Self>{
+        let tcp_stream = TcpStream::connect(proxy_tcp_addr)?;
         ProxyTcpStream{
             proxy_tcp_addr,
             tcp_stream
