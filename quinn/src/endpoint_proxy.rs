@@ -39,10 +39,10 @@ pub struct ProxyTcpStream{
 impl ProxyTcpStream{
     pub fn new(proxy_tcp_addr: SocketAddr) -> io::Result<Self>{
         let tcp_stream = TcpStream::connect(proxy_tcp_addr)?;
-        ProxyTcpStream{
+        Ok(ProxyTcpStream{
             proxy_tcp_addr,
             tcp_stream
-        }
+        })
     }
 
     pub fn rebind_socket(&mut self, proxy_endpoint: &EndpointProxy) -> io::Result<()>
