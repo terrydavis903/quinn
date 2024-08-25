@@ -1,9 +1,9 @@
 use std::{
     collections::VecDeque,
     future::Future,
-    io::{self, IoSliceMut},
+    io::{self, IoSliceMut, Read, Write},
     mem::MaybeUninit,
-    net::{IpAddr, Ipv4Addr, SocketAddr, SocketAddrV4, SocketAddrV6, ToSocketAddrs},
+    net::{IpAddr, Ipv4Addr, SocketAddr, SocketAddrV4, SocketAddrV6, TcpStream, ToSocketAddrs, UdpSocket},
     pin::Pin,
     str,
     sync::{Arc, Mutex},
@@ -11,9 +11,7 @@ use std::{
     time::{Duration, Instant},
 };
 
-use socket2::SockRef;
-
-use crate::runtime::{AsyncUdpSocket, Runtime, default_runtime};
+use crate::runtime::{AsyncUdpSocket, Runtime};
 use byteorder::{BigEndian, ReadBytesExt};
 use bytes::{Bytes, BytesMut};
 use log::debug;
@@ -30,7 +28,60 @@ use crate::{
     EndpointEvent, VarInt, IO_LOOP_BOUND, RECV_TIME_BOUND, SEND_TIME_BOUND,
 };
 
-use socks::{Socks5Datagram, Socks5Stream};
+use socks::{v5::{read_response, write_addr}, TargetAddr, ToTargetAddr};
+
+pub struct ProxyTcpStream{
+    pub proxy_tcp_addr: SocketAddr,
+    pub tcp_stream: TcpStream
+}
+
+// strictly tcp communication to proxy main stream
+impl ProxyTcpStream{
+    pub fn new(proxy_tcp_addr: SocketAddr) -> Self{
+        let tcp_stream = TcpStream::connect(proxy_tcp_addr).unwrap();
+        ProxyTcpStream{
+            proxy_tcp_addr,
+            tcp_stream
+        }
+    }
+
+    pub fn rebind_socket(&mut self, proxy_endpoint: &EndpointProxy) -> io::Result<()>
+    {
+        // local_udp_socket_addr: SocketAddr
+        let local_udp_socket_addr: TargetAddr = proxy_endpoint.local_udp_socket_addr.to_target_addr()?;
+
+        let packet_len = 3;
+        let packet = [
+            5, // protocol version
+            1, // method count
+            0, // method
+            0, // no auth (always offered)
+        ];
+        self.tcp_stream.write_all(&packet[..packet_len])?;
+
+        let mut buf = [0; 2];
+        self.tcp_stream.read_exact(&mut buf)?;
+        // let response_version = buf[0];
+        // let selected_method = buf[1];
+
+
+        let mut packet = [0; 260 + 3];
+        packet[0] = 5; // protocol version
+        packet[1] = 3; // command
+        packet[2] = 0; // reserved
+        let len = write_addr(&mut packet[3..], &local_udp_socket_addr)?;
+        self.tcp_stream.write_all(&packet[..len + 3])?;
+
+        let proxy_ip = self.proxy_tcp_addr.ip();
+
+        let proxy_addr = read_response(&mut self.tcp_stream)?;
+        let proxy_target = SocketAddr::new(proxy_ip, proxy_addr.to_socket_addrs().unwrap().next().unwrap().port());
+
+        proxy_endpoint.reconnect_socket_to_proxy(proxy_target);
+
+        Ok(())
+    }
+}
 
 /// A QUIC endpoint.
 ///
@@ -38,145 +89,67 @@ use socks::{Socks5Datagram, Socks5Stream};
 /// client and server for different connections.
 ///
 /// May be cloned to obtain another handle to the same endpoint.
+/// 
+/// Only controls ports from local sockets
 #[derive(Debug, Clone)]
 pub struct EndpointProxy {
     pub inner: EndpointProxyRef,
     pub default_client_config: Option<ClientConfig>,
     pub runtime: Arc<dyn Runtime>,
-    pub endpoint: SocketAddr,
-    pub stream: Arc<Socks5Stream>
+    pub local_udp_socket_addr: SocketAddr
+
+    // pub tcp_stream: TcpStream
 }
 
 impl EndpointProxy {
-    /// Helper to construct an endpoint for use with outgoing connections only
-    ///
-    /// Note that `addr` is the *local* address to bind to, which should usually be a wildcard
-    /// address like `0.0.0.0:0` or `[::]:0`, which allow communication with any reachable IPv4 or
-    /// IPv6 address respectively from an OS-assigned port.
-    ///
-    /// Platform defaults for dual-stack sockets vary. For example, any socket bound to a wildcard
-    /// IPv6 address on Windows will not by default be able to communicate with IPv4
-    /// addresses. Portable applications should bind an address that matches the family they wish to
-    /// communicate within.
-    // #[cfg(feature = "ring")]
-    // pub fn client(proxy: String, addr: SocketAddr) -> io::Result<Self> {
-
-    //     let socks_dg = Socks5Datagram::bind(proxy, addr).unwrap();
-    //     // let socket = std::net::UdpSocket::bind(addr)?;
-    //     let runtime = default_runtime()
-    //         .ok_or_else(|| io::Error::new(io::ErrorKind::Other, "no async runtime found"))?;
-    //     Self::new_with_runtime(
-    //         EndpointConfig::default(),
-    //         None,
-    //         runtime.wrap_udp_socket(socks_dg.socket)?,
-    //         addr,
-    //         runtime,
-    //     )
-    // }
-
-    /// Helper to construct an endpoint for use with both incoming and outgoing connections
-    ///
-    /// Platform defaults for dual-stack sockets vary. For example, any socket bound to a wildcard
-    /// IPv6 address on Windows will not by default be able to communicate with IPv4
-    /// addresses. Portable applications should bind an address that matches the family they wish to
-    /// communicate within.
-    // #[cfg(feature = "ring")]
-    // pub fn server(proxy: String, config: ServerConfig, addr: SocketAddr) -> io::Result<Self> {
-        
-
-    //     let socks_dg = Socks5Datagram::bind(proxy, addr).unwrap();
-    //     // let socket = std::net::UdpSocket::bind(addr)?;
-    //     let runtime = default_runtime()
-    //         .ok_or_else(|| io::Error::new(io::ErrorKind::Other, "no async runtime found"))?;
-    //     Self::new_with_runtime(
-    //         EndpointConfig::default(),
-    //         Some(config),
-    //         runtime.wrap_udp_socket(socks_dg.socket)?,
-    //         addr,
-    //         runtime,
-    //     )
-    // }
-
-    /// Construct an endpoint with arbitrary configuration and socket
-    // pub fn new(
-    //     config: EndpointConfig,
-    //     server_config: Option<ServerConfig>,
-    //     socket: std::net::UdpSocket,
-    //     endpoint: SocketAddr,
-    //     runtime: Arc<dyn Runtime>,
-    // ) -> io::Result<Self> {
-    //     // let socket_flags = unsafe{
-    //     //     libc::fcntl(Into::<SockRef>::into(&socket).as_raw_fd(), libc::F_GETFL)
-    //     // };
-    //     // debug!("socket info: {}", socket_flags);
-    //     let socket = runtime.wrap_udp_socket(socket)?;
-    //     Self::new_with_runtime(config, server_config, socket, endpoint, runtime)
-    // }
-
-    /// Construct an endpoint with arbitrary configuration and pre-constructed abstract socket
-    ///
-    /// Useful when `socket` has additional state (e.g. sidechannels) attached for which shared
-    /// ownership is needed.
-    // pub fn new_with_abstract_socket(
-    //     config: EndpointConfig,
-    //     server_config: Option<ServerConfig>,
-    //     socket: impl AsyncUdpSocket,
-    //     endpoint: SocketAddr,
-    //     runtime: Arc<dyn Runtime>,
-    // ) -> io::Result<Self> {
-    //     Self::new_with_runtime(config, server_config, Box::new(socket), endpoint, runtime)
-    // }
 
     pub fn new_with_runtime(
         config: EndpointConfig,
         server_config: Option<ServerConfig>,
-        proxy_addr: String,
+        // proxy_addr: String,
+        // unwrapped_socket: UdpSocket,
         // socket: Box<dyn AsyncUdpSocket>,
-        // endpoint: SocketAddr,
+        // proxy_udp_socket_addr: SocketAddr,
         runtime: Arc<dyn Runtime>,
     ) -> io::Result<Self> {
-        
-        let bind_sock_dg = Socks5Datagram::bind(&proxy_addr, SocketAddr::new(IpAddr::V4(Ipv4Addr::new(0, 0, 0, 0)), 0));
-        if let Err(bind_sock_err) = bind_sock_dg{
-            debug!("socket binding ({}) error: {}", proxy_addr, bind_sock_err);
-            return Err(bind_sock_err);
-        }
 
+        let unwrapped_socket = UdpSocket::bind(SocketAddr::V4(SocketAddrV4::new(Ipv4Addr::new(0, 0, 0, 0), 0))).unwrap();
+        let binded_addr = unwrapped_socket.local_addr().unwrap();
+        let local_addr_with_port = SocketAddr::V4(SocketAddrV4::new(Ipv4Addr::new(0, 0, 0, 0), binded_addr.port()));
         
-        let dg = bind_sock_dg.unwrap();
-        
-        let endpoint = dg.stream.proxy_addr().to_socket_addrs().unwrap().next().unwrap();
-        let addr = dg.socket.local_addr()?;
 
-        let socket = runtime.wrap_udp_socket(dg.socket)?;
+        let wrapped_socket = runtime.wrap_udp_socket(unwrapped_socket)?;
 
-        debug!("bound to: {}", addr);
-        let allow_mtud = !socket.may_fragment();
+        // debug!("bound to: {}", addr);
+        let allow_mtud = !wrapped_socket.may_fragment();
         let rc = EndpointProxyRef::new(
-            socket,
-            endpoint,
+            wrapped_socket,
             proto::Endpoint::new(Arc::new(config), server_config.map(Arc::new), allow_mtud),
-            addr.is_ipv6(),
+            binded_addr.is_ipv6(),
             runtime.clone()
         );
         debug!("spawning endpoint proxy");
         let driver = EndpointProxyDriver(rc.clone());
         runtime.spawn(Box::pin(async {
 
-            debug!("endpoint proxy spawned. im inside closure");
+            // debug!("endpoint proxy spawned. im inside closure");
             if let Err(e) = driver.await {
                 tracing::error!("I/O error: {}", e);
             }
-            debug!("endpoint proxy done");
+            // debug!("endpoint proxy done");
         }));
         
         Ok(Self {
             inner: rc,
             default_client_config: None,
             runtime,
-            endpoint,
-            stream: Arc::new(dg.stream)
+            local_udp_socket_addr: local_addr_with_port,
+            // stream: Arc::new(dg.stream)
         })
+    }
+
+    pub fn reconnect_socket_to_proxy(&self, proxy_addr: SocketAddr){
+        self.inner.0.state.lock().unwrap().reconnect(proxy_addr);
     }
 
     /// Get the next incoming connection attempt from a client
@@ -417,7 +390,6 @@ pub struct EndpointProxyInner {
 #[derive(Debug)]
 pub struct ProxyState {
     pub socket: Box<dyn AsyncUdpSocket>,
-    pub endpoint: SocketAddr,
     pub udp_state: Arc<UdpState>,
     pub inner: proto::Endpoint,
     pub outgoing: VecDeque<udp::Transmit>,
@@ -469,22 +441,22 @@ impl ProxyState {
                     self.recv_limiter.record_work(msgs);
                     for (meta, buf) in metas.iter().zip(iovs.iter()).take(msgs) {
                         // debug!("received data: {:?}", buf);
-                        // let mut data: BytesMut = buf[0..meta.len].into();
-                        let mut data: BytesMut = buf[10..meta.len].into();
-                        let header_buf = &mut &buf[4..10];
+                        let mut data: BytesMut = buf[0..meta.len].into();
+                        // let mut data: BytesMut = buf[10..meta.len].into();
+                        // let header_buf = &mut &buf[4..10];
 
-                        let ip = Ipv4Addr::from(header_buf.read_u32::<BigEndian>()?);
-                        let port = header_buf.read_u16::<BigEndian>()?;
-                        let addr = SocketAddr::V4(SocketAddrV4::new(ip, port));
-                        let meta = RecvMeta{
-                            addr,
-                            len: meta.len - 10,
-                            stride: meta.len - 10,
-                            ecn: None,
-                            dst_ip: None,
-                        };
+                        // let ip = Ipv4Addr::from(header_buf.read_u32::<BigEndian>()?);
+                        // let port = header_buf.read_u16::<BigEndian>()?;
+                        // let addr = SocketAddr::V4(SocketAddrV4::new(ip, port));
+                        // let meta = RecvMeta{
+                        //     addr,
+                        //     len: meta.len - 10,
+                        //     stride: meta.len - 10,
+                        //     ecn: None,
+                        //     dst_ip: None,
+                        // };
 
-                        debug!("received data from: {}. data len: {}", addr, meta.len);
+                        // trace!("received data from: {}. data len: {}", meta.addr, meta.len);
 
                         // /////////////////
                         while !data.is_empty() {
@@ -591,7 +563,7 @@ impl ProxyState {
 
             match self
                 .socket
-                .proxy_send(&self.udp_state, cx, self.outgoing.as_slices().0, self.endpoint.clone())
+                .proxy_send(&self.udp_state, cx, self.outgoing.as_slices().0)
             {
                 Poll::Ready(Ok(n)) => {
                     debug!("poll ready for writing");
@@ -682,6 +654,10 @@ impl ProxyState {
             .saturating_sub(contents_len);
         self.inner
             .set_socket_buffer_fill(self.outgoing_queue_contents_len);
+    }
+
+    fn reconnect(&mut self, proxy_addr: SocketAddr){
+        self.socket.reconnect(proxy_addr)
     }
 }
 
@@ -787,7 +763,6 @@ pub struct EndpointProxyRef(pub Arc<EndpointProxyInner>);
 impl EndpointProxyRef {
     pub fn new(
         socket: Box<dyn AsyncUdpSocket>,
-        endpoint: SocketAddr,
         inner: proto::Endpoint,
         ipv6: bool,
         runtime: Arc<dyn Runtime>,
@@ -807,7 +782,6 @@ impl EndpointProxyRef {
             },
             state: Mutex::new(ProxyState {
                 socket,
-                endpoint,
                 udp_state,
                 inner,
                 ipv6,

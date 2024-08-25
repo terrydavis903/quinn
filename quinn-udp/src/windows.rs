@@ -1,11 +1,8 @@
 use std::{
-    io::{self, IoSliceMut},
-    mem,
-    os::windows::io::AsRawSocket,
-    sync::Mutex,
-    time::Instant,
+    io::{self, IoSliceMut}, mem, net::SocketAddr, os::windows::io::AsRawSocket, sync::Mutex, time::Instant
 };
 
+use socket2::SockAddr;
 use windows_sys::Win32::Networking::WinSock;
 
 use super::{log_sendmsg_error, RecvMeta, Transmit, UdpSockRef, UdpState, IO_ERROR_LOG_INTERVAL};
@@ -197,6 +194,14 @@ impl UdpSocketState {
             dst_ip: None,
         };
         Ok(1)
+    }
+
+    pub fn connect_socket(
+        &self,
+        socket: UdpSockRef<'_>,
+        proxy_addr: &SocketAddr
+    ) -> io::Result<()> {
+        socket.0.connect(&SockAddr::from(*proxy_addr))
     }
     
 }

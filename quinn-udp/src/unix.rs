@@ -11,6 +11,7 @@ use std::{
         Mutex,
     },
     time::Instant,
+    sys_common::IntoInner
 };
 use byteorder::{ReadBytesExt, WriteBytesExt, BigEndian};
 use std::cmp;
@@ -83,6 +84,14 @@ impl UdpSocketState {
         meta: &mut [RecvMeta],
     ) -> io::Result<usize> {
         recv_proxy(socket.0, bufs, meta)
+    }
+
+    pub fn connect_socket(
+        &self,
+        socket: UdpSockRef<'_>,
+        proxy_addr: &SocketAddr
+    ) -> io::Result<()> {
+        socket.0.connect(&SockAddr::from(*proxy_addr))
     }
 }
 
@@ -291,10 +300,10 @@ fn send_proxy(
     info!("sending message from unix!");
     let mut sent_msg = 0;
 
-    while sent_msg < transmits.len() {
-        let addr_raw = transmits[sent_msg].destination;
+    for transmission in transmits.iter(){
+        let addr_raw = transmission.destination;
 
-        let mut header = [0; 260 + 3];
+        let mut header = [0; 10];
         // first two bytes are reserved at 0
         // third byte is the fragment id at 0
 
@@ -315,10 +324,10 @@ fn send_proxy(
         
         let written_len = fwd_hdr.len();
 
-        info!("udp proxy write addr: {}", addr_raw);
+        // info!("udp proxy write addr: {}", addr_raw);
 
-        let bufs = [&header[..10], &transmits[sent_msg].contents];
-        // let bufs = [&header[..((start_len - written_len) + 3) as usize], &transmits[sent_msg].contents];
+        let bufs = [&header, &transmission.contents];
+        // let bufs = [&header[..((start_len - written_len) + 3) as usize], &transmission.contents];
 
 
         let r = unsafe {
@@ -350,8 +359,7 @@ fn send_proxy(
                     //   Those are not fatal errors, since the
                     //   configuration can be dynamically changed.
                     // - Destination unreachable errors have been observed for other
-                    log_sendmsg_error(last_send_error, e, &transmits[sent_msg]);
-                    sent_msg -= 1;
+                    log_sendmsg_error(last_send_error, e, &transmission);
                 }
             }
         }
@@ -543,9 +551,6 @@ fn recv_proxy(io: SockRef<'_>, bufs: &mut [IoSliceMut<'_>], meta: &mut [RecvMeta
                     continue
                 }
                 io::ErrorKind::WouldBlock => {
-                    if msg_count > 0{
-                        info!("read {} messages, returning from inner unix1 !", msg_count);
-                    }
                     return Ok(msg_count)
                 },
                 _ => {

@@ -55,8 +55,7 @@ pub trait AsyncUdpSocket: Send + Debug + 'static {
         &self,
         state: &UdpState,
         cx: &mut Context,
-        transmits: &[Transmit],
-        endpoint: SocketAddr
+        transmits: &[Transmit]
     ) -> Poll<Result<usize, io::Error>>;
 
     /// Receive UDP datagrams, or register to be woken if receiving may succeed in the future
@@ -77,6 +76,8 @@ pub trait AsyncUdpSocket: Send + Debug + 'static {
     fn may_fragment(&self) -> bool {
         true
     }
+
+    fn reconnect(&self, proxy_addr: SocketAddr);
 }
 
 /// Automatically select an appropriate runtime from those enabled at compile time

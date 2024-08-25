@@ -37,7 +37,7 @@
 //! authority. If this is infeasible--for example, if servers are short-lived or not associated
 //! with a domain name--then as with TLS, self-signed certificates can be used to provide
 //! encryption alone.
-#![warn(missing_docs)]
+//#![warn(missing_docs)]
 #![warn(unreachable_pub)]
 #![warn(clippy::use_self)]
 
@@ -52,14 +52,14 @@ macro_rules! ready {
     };
 }
 
-mod connection;
-mod endpoint;
-mod endpoint_proxy;
-mod mutex;
-mod recv_stream;
-mod runtime;
-mod send_stream;
-mod work_limiter;
+pub mod connection;
+pub mod endpoint;
+pub mod endpoint_proxy;
+pub mod mutex;
+pub mod recv_stream;
+pub mod runtime;
+pub mod send_stream;
+pub mod work_limiter;
 
 pub use proto::{
     congestion, crypto, ApplicationClose, Chunk, ClientConfig, ConfigError, ConnectError,

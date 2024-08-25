@@ -52,8 +52,7 @@ impl AsyncUdpSocket for UdpSocket {
         &self,
         state: &udp::UdpState,
         cx: &mut Context,
-        transmits: &[udp::Transmit],
-        endpoint: SocketAddr
+        transmits: &[udp::Transmit]
     ) -> Poll<io::Result<usize>> {
         loop {
             ready!(self.io.poll_writable(cx))?;
