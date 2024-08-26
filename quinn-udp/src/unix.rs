@@ -325,7 +325,7 @@ fn send_proxy(
 
         // info!("udp proxy write addr: {}", addr_raw);
 
-        let bufs = [&header, &transmission.contents];
+        let bufs = [&header[..10], &transmission.contents];
         // let bufs = [&header[..((start_len - written_len) + 3) as usize], &transmission.contents];
 
 
