@@ -10,14 +10,13 @@ use std::{
         atomic::{AtomicBool, AtomicUsize},
         Mutex,
     },
-    time::Instant,
-    sys_common::IntoInner
+    time::Instant
 };
 use byteorder::{ReadBytesExt, WriteBytesExt, BigEndian};
 use std::cmp;
 use tracing::info;
 
-use socket2::SockRef;
+use socket2::{SockRef, SockAddr};
 
 use super::{
     cmsg, log_sendmsg_error, EcnCodepoint, RecvMeta, Transmit, UdpSockRef, UdpState,
