@@ -77,7 +77,7 @@ pub trait AsyncUdpSocket: Send + Debug + 'static {
         true
     }
 
-    fn reconnect(&self, proxy_addr: SocketAddr);
+    fn reconnect(&self, proxy_addr: SocketAddr) -> io::Result<()> ;
 }
 
 /// Automatically select an appropriate runtime from those enabled at compile time

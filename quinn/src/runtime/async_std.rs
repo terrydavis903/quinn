@@ -115,4 +115,10 @@ impl AsyncUdpSocket for UdpSocket {
     fn may_fragment(&self) -> bool {
         udp::may_fragment()
     }
+
+    fn reconnect(&self, proxy_addr: SocketAddr) -> io::Result<()>  {
+        let inner = &self.inner;
+        let io = &self.io;
+        inner.connect_socket(io.into(), &proxy_addr)
+    }
 }

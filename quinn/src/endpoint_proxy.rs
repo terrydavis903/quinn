@@ -77,9 +77,7 @@ impl ProxyTcpStream{
         let proxy_addr = read_response(&mut self.tcp_stream)?;
         let proxy_target = SocketAddr::new(proxy_ip, proxy_addr.to_socket_addrs().unwrap().next().unwrap().port());
 
-        proxy_endpoint.reconnect_socket_to_proxy(proxy_target);
-
-        Ok(())
+        proxy_endpoint.reconnect_socket_to_proxy(proxy_target)
     }
 }
 
@@ -114,6 +112,7 @@ impl EndpointProxy {
     ) -> io::Result<Self> {
 
         let mut unwrapped_socket = UdpSocket::bind(SocketAddr::V4(SocketAddrV4::new(Ipv4Addr::new(0, 0, 0, 0), 0))).unwrap();
+        // unwrapped_socket.set_nonblocking(true).unwrap();
         let binded_addr = unwrapped_socket.local_addr().unwrap();
         let local_addr_with_port = SocketAddr::V4(SocketAddrV4::new(Ipv4Addr::new(0, 0, 0, 0), binded_addr.port()));
         
@@ -148,8 +147,8 @@ impl EndpointProxy {
         })
     }
 
-    pub fn reconnect_socket_to_proxy(&self, proxy_addr: SocketAddr){
-        self.inner.0.state.lock().unwrap().reconnect(proxy_addr);
+    pub fn reconnect_socket_to_proxy(&self, proxy_addr: SocketAddr) -> io::Result<()>  {
+        self.inner.0.state.lock().unwrap().reconnect(proxy_addr)
     }
 
     /// Get the next incoming connection attempt from a client
@@ -656,7 +655,7 @@ impl ProxyState {
             .set_socket_buffer_fill(self.outgoing_queue_contents_len);
     }
 
-    fn reconnect(&mut self, proxy_addr: SocketAddr){
+    fn reconnect(&mut self, proxy_addr: SocketAddr) -> io::Result<()>  {
         self.socket.reconnect(proxy_addr)
     }
 }
