@@ -113,7 +113,7 @@ impl EndpointProxy {
         runtime: Arc<dyn Runtime>,
     ) -> io::Result<Self> {
 
-        let unwrapped_socket = UdpSocket::bind(SocketAddr::V4(SocketAddrV4::new(Ipv4Addr::new(0, 0, 0, 0), 0))).unwrap();
+        let mut unwrapped_socket = UdpSocket::bind(SocketAddr::V4(SocketAddrV4::new(Ipv4Addr::new(0, 0, 0, 0), 0))).unwrap();
         let binded_addr = unwrapped_socket.local_addr().unwrap();
         let local_addr_with_port = SocketAddr::V4(SocketAddrV4::new(Ipv4Addr::new(0, 0, 0, 0), binded_addr.port()));
         
