@@ -91,7 +91,7 @@ impl ProxyTcpStream{
         let mut proxy_addr_res = read_response(&mut self.tcp_stream);
         let start_instance = Instant::now();
         while let Err(proxy_addr_err) = proxy_addr_res{
-            if Instant::now().duration_since(start_instance) > Duration::from_millis(50){
+            if Instant::now().duration_since(start_instance) > Duration::from_millis(500){
                 return Err(proxy_addr_err);
             }
             tokio::time::sleep(Duration::from_millis(2)).await;
