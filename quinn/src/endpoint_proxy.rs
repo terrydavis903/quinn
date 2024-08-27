@@ -71,7 +71,7 @@ impl ProxyTcpStream{
         })
     }
 
-    pub fn rebind_socket(&mut self, proxy_endpoint: &EndpointProxy) -> io::Result<()>
+    pub fn bind_endpoint(&mut self, proxy_endpoint: &EndpointProxy) -> io::Result<()>
     {
         // local_udp_socket_addr: SocketAddr
         let local_udp_socket_addr: TargetAddr = proxy_endpoint.local_udp_socket_addr.to_target_addr()?;
