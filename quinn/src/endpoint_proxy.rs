@@ -38,7 +38,33 @@ pub struct ProxyTcpStream{
 // strictly tcp communication to proxy main stream
 impl ProxyTcpStream{
     pub fn new(proxy_tcp_addr: SocketAddr) -> io::Result<Self>{
-        let tcp_stream = TcpStream::connect(proxy_tcp_addr)?;
+        let mut tcp_stream = TcpStream::connect(proxy_tcp_addr)?;
+
+        let packet_len = 3;
+        let packet = [
+            5, // protocol version
+            1, // method count
+            0, // method
+            0, // no auth (always offered)
+        ];
+        tcp_stream.write_all(&packet[..packet_len])?;
+
+        let mut buf = [0; 2];
+        tcp_stream.read_exact(&mut buf)?;
+        // let response_version = buf[0];
+        // let selected_method = buf[1];
+
+        let response_version = buf[0];
+        let selected_method = buf[1];
+
+        if response_version != 5 {
+            return Err(io::Error::new(io::ErrorKind::InvalidData, "invalid response version"));
+        }
+
+        if selected_method == 0xff {
+            return Err(io::Error::new(io::ErrorKind::Other, "no acceptable auth methods"))
+        }
+
         Ok(ProxyTcpStream{
             proxy_tcp_addr,
             tcp_stream
@@ -50,19 +76,7 @@ impl ProxyTcpStream{
         // local_udp_socket_addr: SocketAddr
         let local_udp_socket_addr: TargetAddr = proxy_endpoint.local_udp_socket_addr.to_target_addr()?;
 
-        let packet_len = 3;
-        let packet = [
-            5, // protocol version
-            1, // method count
-            0, // method
-            0, // no auth (always offered)
-        ];
-        self.tcp_stream.write_all(&packet[..packet_len])?;
-
-        let mut buf = [0; 2];
-        self.tcp_stream.read_exact(&mut buf)?;
-        // let response_version = buf[0];
-        // let selected_method = buf[1];
+        
 
 
         let mut packet = [0; 260 + 3];
