@@ -76,21 +76,21 @@ impl ProxyTcpStream{
         // local_udp_socket_addr: SocketAddr
         let local_udp_socket_addr: TargetAddr = proxy_endpoint.local_udp_socket_addr.to_target_addr()?;
 
-        
-
-
         let mut packet = [0; 260 + 3];
         packet[0] = 5; // protocol version
         packet[1] = 3; // command
         packet[2] = 0; // reserved
         let len = write_addr(&mut packet[3..], &local_udp_socket_addr)?;
+        debug!("writing address to bind");
         self.tcp_stream.write_all(&packet[..len + 3])?;
 
         let proxy_ip = self.proxy_tcp_addr.ip();
 
+        debug!("reading response");
         let proxy_addr = read_response(&mut self.tcp_stream)?;
         let proxy_target = SocketAddr::new(proxy_ip, proxy_addr.to_socket_addrs().unwrap().next().unwrap().port());
 
+        debug!("reconnecting socket response");
         proxy_endpoint.reconnect_socket_to_proxy(proxy_target)
     }
 }
