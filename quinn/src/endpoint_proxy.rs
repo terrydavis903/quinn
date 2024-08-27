@@ -71,7 +71,7 @@ impl ProxyTcpStream{
         })
     }
 
-    pub async fn rebind_socket(&mut self, proxy_endpoint: &EndpointProxy) -> io::Result<()>
+    pub fn rebind_socket(&mut self, proxy_endpoint: &EndpointProxy) -> io::Result<()>
     {
         // local_udp_socket_addr: SocketAddr
         let local_udp_socket_addr: TargetAddr = proxy_endpoint.local_udp_socket_addr.to_target_addr()?;
@@ -88,17 +88,7 @@ impl ProxyTcpStream{
 
         debug!("reading response");
         
-        let mut proxy_addr_res = read_response(&mut self.tcp_stream);
-        let start_instance = Instant::now();
-        while let Err(proxy_addr_err) = proxy_addr_res{
-            if Instant::now().duration_since(start_instance) > Duration::from_millis(500){
-                return Err(proxy_addr_err);
-            }
-            tokio::time::sleep(Duration::from_millis(2)).await;
-            proxy_addr_res = read_response(&mut self.tcp_stream);
-        }
-
-        let proxy_addr = proxy_addr_res.unwrap();
+        let proxy_addr = read_response(&mut self.tcp_stream)?;
         let proxy_target = SocketAddr::new(proxy_ip, proxy_addr.to_socket_addrs().unwrap().next().unwrap().port());
 
         debug!("reconnecting socket response");
