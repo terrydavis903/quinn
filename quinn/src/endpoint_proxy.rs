@@ -57,6 +57,7 @@ impl ProxyTcpStream{
         tcp_stream.write_all(&packet[..packet_len])?;
 
         let mut buf = [0; 2];
+        debug!("reading tcp response");
         tcp_stream.read_exact(&mut buf)?;
         // let response_version = buf[0];
         // let selected_method = buf[1];
@@ -72,6 +73,7 @@ impl ProxyTcpStream{
             return Err(io::Error::new(io::ErrorKind::Other, "no acceptable auth methods"))
         }
 
+        debug!("making udp socket");
 
         let unwrapped_socket = UdpSocket::bind(SocketAddr::V4(SocketAddrV4::new(Ipv4Addr::new(0, 0, 0, 0), 0))).unwrap();
 
@@ -94,6 +96,7 @@ impl ProxyTcpStream{
         let start_instance = Instant::now();
         while let Err(proxy_addr_err) = proxy_addr_opt{
             if Instant::now().duration_since(start_instance) > Duration::from_millis(200){
+                debug!("timeout udp connect");
                 return Err(proxy_addr_err);
                 // return Err(io::Error::new(io::ErrorKind::TimedOut, "Reading binding socket timed out"));
             }
@@ -102,7 +105,7 @@ impl ProxyTcpStream{
 
         let proxy_addr = proxy_addr_opt.unwrap();
         let proxy_target = SocketAddr::new(proxy_ip, proxy_addr.to_socket_addrs().unwrap().next().unwrap().port());
-
+        debug!("reconnecting socket");
         unwrapped_socket.connect(proxy_target)?;
         debug!("reconnecting socket response");
         
