@@ -11,7 +11,7 @@ use std::{
     time::{Duration, Instant},
 };
 
-use crate::runtime::{AsyncUdpSocket, Runtime};
+use crate::{runtime::{AsyncUdpSocket, Runtime}, TokioRuntime};
 use byteorder::{BigEndian, ReadBytesExt};
 use bytes::{Bytes, BytesMut};
 use log::debug;
@@ -32,13 +32,20 @@ use socks::{v5::{read_response, write_addr}, TargetAddr, ToTargetAddr};
 
 pub struct ProxyTcpStream{
     pub proxy_tcp_addr: SocketAddr,
-    pub tcp_stream: TcpStream
+    // pub tcp_stream: TcpStream
 }
 
 // strictly tcp communication to proxy main stream
 impl ProxyTcpStream{
-    pub fn new(proxy_tcp_addr: SocketAddr) -> io::Result<Self>{
-        let mut tcp_stream = TcpStream::connect(proxy_tcp_addr)?;
+    pub fn new(proxy_tcp_addr: SocketAddr) -> Self{
+        ProxyTcpStream{
+            proxy_tcp_addr
+        }
+    }
+
+    pub async fn new_endpoint(&mut self) -> io::Result<EndpointProxy>
+    {
+        let mut tcp_stream = TcpStream::connect(self.proxy_tcp_addr)?;
 
         let packet_len = 3;
         let packet = [
@@ -65,16 +72,11 @@ impl ProxyTcpStream{
             return Err(io::Error::new(io::ErrorKind::Other, "no acceptable auth methods"))
         }
 
-        Ok(ProxyTcpStream{
-            proxy_tcp_addr,
-            tcp_stream
-        })
-    }
 
-    pub fn bind_endpoint(&mut self, proxy_endpoint: &EndpointProxy) -> io::Result<()>
-    {
+        let unwrapped_socket = UdpSocket::bind(SocketAddr::V4(SocketAddrV4::new(Ipv4Addr::new(0, 0, 0, 0), 0))).unwrap();
+
         // local_udp_socket_addr: SocketAddr
-        let local_udp_socket_addr: TargetAddr = proxy_endpoint.local_udp_socket_addr.to_target_addr()?;
+        let local_udp_socket_addr = unwrapped_socket.local_addr()?.to_target_addr()?;
 
         let mut packet = [0; 260 + 3];
         packet[0] = 5; // protocol version
@@ -82,17 +84,29 @@ impl ProxyTcpStream{
         packet[2] = 0; // reserved
         let len = write_addr(&mut packet[3..], &local_udp_socket_addr)?;
         debug!("writing address to bind");
-        self.tcp_stream.write_all(&packet[..len + 3])?;
+        tcp_stream.write_all(&packet[..len + 3])?;
 
         let proxy_ip = self.proxy_tcp_addr.ip();
 
         debug!("reading response");
         
-        let proxy_addr = read_response(&mut self.tcp_stream)?;
+        let mut proxy_addr_opt = read_response(&mut tcp_stream);
+        let start_instance = Instant::now();
+        while let Err(proxy_addr_err) = proxy_addr_opt{
+            if Instant::now().duration_since(start_instance) > Duration::from_millis(200){
+                return Err(proxy_addr_err);
+                // return Err(io::Error::new(io::ErrorKind::TimedOut, "Reading binding socket timed out"));
+            }
+            proxy_addr_opt = read_response(&mut tcp_stream);
+        }
+
+        let proxy_addr = proxy_addr_opt.unwrap();
         let proxy_target = SocketAddr::new(proxy_ip, proxy_addr.to_socket_addrs().unwrap().next().unwrap().port());
 
+        unwrapped_socket.connect(proxy_target)?;
         debug!("reconnecting socket response");
-        proxy_endpoint.reconnect_socket_to_proxy(proxy_target)
+        
+        EndpointProxy::new(unwrapped_socket, tcp_stream)
     }
 }
 
@@ -109,24 +123,28 @@ pub struct EndpointProxy {
     pub inner: EndpointProxyRef,
     pub default_client_config: Option<ClientConfig>,
     pub runtime: Arc<dyn Runtime>,
-    pub local_udp_socket_addr: SocketAddr
+    pub local_udp_socket_addr: SocketAddr,
 
     // pub tcp_stream: TcpStream
 }
 
 impl EndpointProxy {
 
-    pub fn new_with_runtime(
-        config: EndpointConfig,
-        server_config: Option<ServerConfig>,
+    pub fn new(
+        // config: EndpointConfig,
+        // server_config: Option<ServerConfig>,
         // proxy_addr: String,
-        // unwrapped_socket: UdpSocket,
+        unwrapped_socket: UdpSocket,
         // socket: Box<dyn AsyncUdpSocket>,
         // proxy_udp_socket_addr: SocketAddr,
-        runtime: Arc<dyn Runtime>,
+        // runtime: Arc<dyn Runtime>,
+        tcp_stream: TcpStream
     ) -> io::Result<Self> {
+        let runtime = Arc::new(TokioRuntime);
+        // let config = EndpointConfig::default();
+        // let server_config = None;
 
-        let mut unwrapped_socket = UdpSocket::bind(SocketAddr::V4(SocketAddrV4::new(Ipv4Addr::new(0, 0, 0, 0), 0))).unwrap();
+        // let mut unwrapped_socket = UdpSocket::bind(SocketAddr::V4(SocketAddrV4::new(Ipv4Addr::new(0, 0, 0, 0), 0))).unwrap();
         // unwrapped_socket.set_nonblocking(true).unwrap();
         let binded_addr = unwrapped_socket.local_addr().unwrap();
         let local_addr_with_port = SocketAddr::V4(SocketAddrV4::new(Ipv4Addr::new(0, 0, 0, 0), binded_addr.port()));
@@ -137,8 +155,10 @@ impl EndpointProxy {
         // debug!("bound to: {}", addr);
         let allow_mtud = !wrapped_socket.may_fragment();
         let rc = EndpointProxyRef::new(
+            tcp_stream,
             wrapped_socket,
-            proto::Endpoint::new(Arc::new(config), server_config.map(Arc::new), allow_mtud),
+            proto::Endpoint::new(Arc::new(EndpointConfig::default()), None, allow_mtud),
+            // proto::Endpoint::new(Arc::new(config), server_config.map(Arc::new), allow_mtud),
             binded_addr.is_ipv6(),
             runtime.clone()
         );
@@ -422,7 +442,9 @@ pub struct ProxyState {
     /// The packet contents length in the outgoing queue.
     pub outgoing_queue_contents_len: usize,
 
-    pub last_heartbeat: Instant
+    pub last_heartbeat: Instant,
+
+    pub tcp_stream: TcpStream
 }
 
 #[derive(Debug)]
@@ -776,6 +798,7 @@ pub struct EndpointProxyRef(pub Arc<EndpointProxyInner>);
 
 impl EndpointProxyRef {
     pub fn new(
+        tcp_stream: TcpStream,
         socket: Box<dyn AsyncUdpSocket>,
         inner: proto::Endpoint,
         ipv6: bool,
@@ -795,6 +818,7 @@ impl EndpointProxyRef {
                 idle: Notify::new(),
             },
             state: Mutex::new(ProxyState {
+                tcp_stream,
                 socket,
                 udp_state,
                 inner,
