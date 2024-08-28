@@ -43,7 +43,7 @@ impl ProxyTcpStream{
         }
     }
 
-    pub async fn new_endpoint(&mut self) -> io::Result<EndpointProxy>
+    pub async fn new_endpoint(&self) -> io::Result<EndpointProxy>
     {
         let mut tcp_stream = TcpStream::connect(self.proxy_tcp_addr)?;
 
