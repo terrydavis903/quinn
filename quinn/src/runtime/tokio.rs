@@ -89,6 +89,7 @@ impl AsyncUdpSocket for UdpSocket {
             // let io_res = self.io.try_io(Interest::READABLE, || {
             //     // self.inner.recv((&self.io).into(), bufs, meta)
             // });
+            debug!("tokio recieved: {} msgs", bufs.len());
 
             let io_res = self.inner.recv_proxy((&self.io).into(), bufs, meta);
             

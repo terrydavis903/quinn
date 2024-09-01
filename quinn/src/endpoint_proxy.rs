@@ -375,7 +375,7 @@ impl Future for EndpointProxyDriver {
             endpoint.driver = Some(cx.waker().clone());
         }
 
-        debug!("staring sub drivers");
+        debug!("starting sub drivers");
 
         let now = Instant::now();
         let mut keep_going = false;
@@ -543,7 +543,7 @@ impl ProxyState {
                 },
                 Poll::Ready(Err(ref e)) if e.kind() == io::ErrorKind::WouldBlock => {
                     debug!("recv wouldblock error, continuing");
-                    continue;
+                    break;
                 }
                 Poll::Ready(Err(e)) => {
                     debug!("poll recv error: {}", e);
