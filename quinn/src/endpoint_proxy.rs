@@ -476,6 +476,8 @@ impl ProxyState {
                 Poll::Ready(Ok(msgs)) => {
                     if msgs != 0{
                         debug!("socket recieved {} messages. metas len: {}. iovs len: {}", msgs, metas.len(), iovs.len());
+                    }else{
+                        break;    
                     }
                     self.recv_limiter.record_work(msgs);
                     for (meta, buf) in metas.iter().zip(iovs.iter()).take(msgs) {
