@@ -573,7 +573,7 @@ impl ProxyState {
                     },
                     None => {
                         if Instant::now().duration_since(self.last_heartbeat) > Duration::from_secs(5){
-                            debug!("added heartbeat");
+                            debug!("added heartbeat: {}", self.socket.local_addr().unwrap());
                             self.queue_transmit(Transmit{
                                 // destination: SocketAddr::new(IpAddr::V4(Ipv4Addr::new(213,188,212,231)), 11111),
                                 destination: SocketAddr::new(IpAddr::V4(Ipv4Addr::new(8,8,8,8)), 53),
