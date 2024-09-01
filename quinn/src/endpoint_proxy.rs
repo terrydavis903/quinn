@@ -619,7 +619,7 @@ impl ProxyState {
                 },
                 Poll::Ready(Err(ref e)) if e.kind() == io::ErrorKind::WouldBlock => {
                     debug!("poll write wouldblock, continuing");
-                    continue;
+                    break Ok(false);
                 },
                 Poll::Ready(Err(e)) => {
                     debug!("poll write ready error: {}", e);
