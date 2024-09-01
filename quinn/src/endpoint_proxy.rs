@@ -479,7 +479,7 @@ impl ProxyState {
                     }
                     self.recv_limiter.record_work(msgs);
                     for (meta, buf) in metas.iter().zip(iovs.iter()).take(msgs) {
-                        debug!("received data: {:?}", buf);
+                        // debug!("received data: {:?}", buf);
                         let mut data: BytesMut = buf[0..meta.len].into();
                         // let mut data: BytesMut = buf[10..meta.len].into();
                         // let header_buf = &mut &buf[4..10];
