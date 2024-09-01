@@ -543,10 +543,10 @@ impl ProxyState {
                 Poll::Ready(Err(ref e)) if e.kind() == io::ErrorKind::ConnectionReset => {
                     continue;
                 },
-                Poll::Ready(Err(ref e)) if e.kind() == io::ErrorKind::WouldBlock => {
-                    debug!("recv wouldblock error, continuing");
-                    break;
-                }
+                // Poll::Ready(Err(ref e)) if e.kind() == io::ErrorKind::WouldBlock => {
+                //     debug!("recv wouldblock error, continuing");
+                //     break;
+                // }
                 Poll::Ready(Err(e)) => {
                     debug!("poll recv error: {}", e);
                     return Err(e);
@@ -619,10 +619,10 @@ impl ProxyState {
                     debug!("poll write socket pending");
                     break Ok(false);
                 },
-                Poll::Ready(Err(ref e)) if e.kind() == io::ErrorKind::WouldBlock => {
-                    debug!("poll write wouldblock, continuing");
-                    break Ok(false);
-                },
+                // Poll::Ready(Err(ref e)) if e.kind() == io::ErrorKind::WouldBlock => {
+                //     debug!("poll write wouldblock, continuing");
+                //     break Ok(false);
+                // },
                 Poll::Ready(Err(e)) => {
                     debug!("poll write ready error: {}", e);
                     break Err(e);

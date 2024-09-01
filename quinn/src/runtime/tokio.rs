@@ -89,7 +89,7 @@ impl AsyncUdpSocket for UdpSocket {
             // let io_res = self.io.try_io(Interest::READABLE, || {
             //     // self.inner.recv((&self.io).into(), bufs, meta)
             // });
-            debug!("tokio recieved");
+            // debug!("tokio recieved");
 
             let io_res = self.inner.recv_proxy((&self.io).into(), bufs, meta);
             
@@ -104,7 +104,7 @@ impl AsyncUdpSocket for UdpSocket {
                 return Poll::Ready(Err(res_err));
             }
 
-            debug!("should be unreachable: {:?}", io_res);
+            // debug!("should be unreachable: {:?}", io_res);
         }
     }
 
