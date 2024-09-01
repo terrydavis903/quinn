@@ -61,11 +61,16 @@ impl AsyncUdpSocket for UdpSocket {
         let io = &self.io;
         loop {
             // ready!(io.poll_send_ready(cx))?;
-            if let Ok(res) = io.try_io(Interest::WRITABLE, || {
-                debug!("poll sending packets: {}", transmits.len());
-                inner.send_proxy(io.into(), state, transmits)
-                // inner.send(io.into(), state, &to_send)
-            }) {
+            // if let Ok(res) = io.try_io(Interest::WRITABLE, || {
+            //     debug!("poll sending packets: {}", transmits.len());
+            //     inner.send_proxy(io.into(), state, transmits)
+            //     // inner.send(io.into(), state, &to_send)
+            // }) {
+            //     return Poll::Ready(Ok(res));
+            // }
+            
+            debug!("poll sending packets: {}", transmits.len());
+            if let Ok(res) = inner.send_proxy(io.into(), state, transmits){
                 return Poll::Ready(Ok(res));
             }
             
@@ -81,10 +86,11 @@ impl AsyncUdpSocket for UdpSocket {
         loop {
             // ready!(self.io.poll_recv_ready(cx))?;
             
-            let io_res = self.io.try_io(Interest::READABLE, || {
-                // self.inner.recv_proxy((&self.io).into(), bufs, meta)
-                self.inner.recv_proxy((&self.io).into(), bufs, meta)
-            });
+            // let io_res = self.io.try_io(Interest::READABLE, || {
+            //     // self.inner.recv((&self.io).into(), bufs, meta)
+            // });
+
+            let io_res = self.inner.recv_proxy((&self.io).into(), bufs, meta);
             
             if let Ok(res) = io_res{
                 if res != 0{
