@@ -111,6 +111,110 @@ impl ProxyTcpStream{
         
         EndpointProxy::new(unwrapped_socket, tcp_stream)
     }
+
+    pub async fn new_endpoint_with_auth(&self, username: &str, password: &str) -> io::Result<EndpointProxy>
+    {
+        let mut tcp_stream = TcpStream::connect(self.proxy_tcp_addr)?;
+
+        let packet_len = 4;
+        let packet = [
+            5, // protocol version
+            2, // method count
+            2, // method
+            0, // no auth (always offered)
+        ];
+        tcp_stream.write_all(&packet[..packet_len])?;
+
+        let mut buf = [0; 2];
+        debug!("reading tcp response");
+        tcp_stream.read_exact(&mut buf)?;
+        // let response_version = buf[0];
+        // let selected_method = buf[1];
+
+        let response_version = buf[0];
+        let selected_method = buf[1];
+
+        if response_version != 5 {
+            return Err(io::Error::new(io::ErrorKind::InvalidData, "invalid response version"));
+        }
+
+        if selected_method == 0xff {
+            return Err(io::Error::new(io::ErrorKind::Other, "no acceptable auth methods"))
+        }
+
+        if selected_method != 2{
+            return Err(io::Error::new(io::ErrorKind::Other, "unknown auth method"))
+        }
+
+        debug!("making udp socket");
+
+        Self::password_authentication(&mut tcp_stream, username, password)?;
+
+        let unwrapped_socket = UdpSocket::bind(SocketAddr::V4(SocketAddrV4::new(Ipv4Addr::new(0, 0, 0, 0), 0))).unwrap();
+
+        // local_udp_socket_addr: SocketAddr
+        let local_udp_socket_addr = unwrapped_socket.local_addr()?.to_target_addr()?;
+
+        let mut packet = [0; 260 + 3];
+        packet[0] = 5; // protocol version
+        packet[1] = 3; // command
+        packet[2] = 0; // reserved
+        let len = write_addr(&mut packet[3..], &local_udp_socket_addr)?;
+        debug!("writing address to bind");
+        tcp_stream.write_all(&packet[..len + 3])?;
+
+        let proxy_ip = self.proxy_tcp_addr.ip();
+
+        debug!("reading response");
+        
+        let mut proxy_addr_opt = read_response(&mut tcp_stream);
+        let start_instance = Instant::now();
+        while let Err(proxy_addr_err) = proxy_addr_opt{
+            if Instant::now().duration_since(start_instance) > Duration::from_millis(200){
+                debug!("timeout udp connect");
+                return Err(proxy_addr_err);
+                // return Err(io::Error::new(io::ErrorKind::TimedOut, "Reading binding socket timed out"));
+            }
+            proxy_addr_opt = read_response(&mut tcp_stream);
+        }
+
+        let proxy_addr = proxy_addr_opt.unwrap();
+        let proxy_target = SocketAddr::new(proxy_ip, proxy_addr.to_socket_addrs().unwrap().next().unwrap().port());
+        debug!("reconnecting socket");
+        unwrapped_socket.connect(proxy_target)?;
+        debug!("reconnecting socket response");
+        
+        EndpointProxy::new(unwrapped_socket, tcp_stream)
+    }
+
+    pub fn password_authentication(socket: &mut TcpStream, username: &str, password: &str) -> io::Result<()> {
+        if username.len() < 1 || username.len() > 255 {
+            return Err(io::Error::new(io::ErrorKind::InvalidInput, "invalid username"))
+        };
+        if password.len() < 1 || password.len() > 255 {
+            return Err(io::Error::new(io::ErrorKind::InvalidInput, "invalid password"))
+        }
+
+        let mut packet = [0; 515];
+        let packet_size = 3 + username.len() + password.len();
+        packet[0] = 1; // version
+        packet[1] = username.len() as u8;
+        packet[2..2 + username.len()].copy_from_slice(username.as_bytes());
+        packet[2 + username.len()] = password.len() as u8;
+        packet[3 + username.len()..packet_size].copy_from_slice(password.as_bytes());
+        socket.write_all(&packet[..packet_size])?;
+
+        let mut buf = [0; 2];
+        socket.read_exact(&mut buf)?;
+        if buf[0] != 1 {
+            return Err(io::Error::new(io::ErrorKind::InvalidData, "invalid response version"));
+        }
+        if buf[1] != 0 {
+            return Err(io::Error::new(io::ErrorKind::PermissionDenied, "password authentication failed"));
+        }
+
+        Ok(())
+    }
 }
 
 /// A QUIC endpoint.
