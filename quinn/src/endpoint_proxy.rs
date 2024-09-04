@@ -706,18 +706,19 @@ impl ProxyState {
 
                 let mut fwd_hdr: &mut [u8] = &mut header[3..];
 
-                match self.proxy_target {
+                match tx.destination {
                     SocketAddr::V4(v4_addr) => {
                         fwd_hdr.write_u8(1).unwrap();
                         fwd_hdr.write_u32::<BigEndian>((*v4_addr.ip()).into()).unwrap();
                         fwd_hdr.write_u16::<BigEndian>(v4_addr.port()).unwrap();
                     },
                     _ => {
-                        debug!("non v4 addr: {}", self.proxy_target);
+                        debug!("non v4 addr: {}", tx.destination);
                     }
                 };
                 
                 tx_clone.contents = [header.as_slice(), &tx.contents].concat().into();
+                tx_clone.destination = self.proxy_target;
                 tx_clone
                 
             }).collect();
