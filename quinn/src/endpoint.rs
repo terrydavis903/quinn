@@ -53,94 +53,95 @@ impl Endpoint {
     /// IPv6 address on Windows will not by default be able to communicate with IPv4
     /// addresses. Portable applications should bind an address that matches the family they wish to
     /// communicate within.
-    // #[cfg(feature = "ring")]
-    // pub fn client(addr: SocketAddr) -> io::Result<Self> {
-    //     let socket = std::net::UdpSocket::bind(addr)?;
-    //     let runtime = default_runtime()
-    //         .ok_or_else(|| io::Error::new(io::ErrorKind::Other, "no async runtime found"))?;
-    //     Self::new_with_runtime(
-    //         EndpointConfig::default(),
-    //         None,
-    //         runtime.wrap_udp_socket(socket)?,
-    //         runtime,
-    //     )
-    // }
+    #[cfg(feature = "ring")]
+    pub fn client(addr: SocketAddr) -> io::Result<Self> {
+        let socket = std::net::UdpSocket::bind(addr)?;
+        let runtime = default_runtime()
+            .ok_or_else(|| io::Error::new(io::ErrorKind::Other, "no async runtime found"))?;
+        Self::new_with_runtime(
+            EndpointConfig::default(),
+            None,
+            runtime.wrap_udp_socket(socket)?,
+            runtime,
+        )
+    }
 
-    // /// Helper to construct an endpoint for use with both incoming and outgoing connections
-    // ///
-    // /// Platform defaults for dual-stack sockets vary. For example, any socket bound to a wildcard
-    // /// IPv6 address on Windows will not by default be able to communicate with IPv4
-    // /// addresses. Portable applications should bind an address that matches the family they wish to
-    // /// communicate within.
-    // #[cfg(feature = "ring")]
-    // pub fn server(config: ServerConfig, addr: SocketAddr) -> io::Result<Self> {
-    //     let socket = std::net::UdpSocket::bind(addr)?;
-    //     let runtime = default_runtime()
-    //         .ok_or_else(|| io::Error::new(io::ErrorKind::Other, "no async runtime found"))?;
-    //     Self::new_with_runtime(
-    //         EndpointConfig::default(),
-    //         Some(config),
-    //         runtime.wrap_udp_socket(socket)?,
-    //         runtime,
-    //     )
-    // }
+    /// Helper to construct an endpoint for use with both incoming and outgoing connections
+    ///
+    /// Platform defaults for dual-stack sockets vary. For example, any socket bound to a wildcard
+    /// IPv6 address on Windows will not by default be able to communicate with IPv4
+    /// addresses. Portable applications should bind an address that matches the family they wish to
+    /// communicate within.
+    #[cfg(feature = "ring")]
+    pub fn server(config: ServerConfig, addr: SocketAddr) -> io::Result<Self> {
+        let socket = std::net::UdpSocket::bind(addr)?;
+        let runtime = default_runtime()
+            .ok_or_else(|| io::Error::new(io::ErrorKind::Other, "no async runtime found"))?;
+        Self::new_with_runtime(
+            EndpointConfig::default(),
+            Some(config),
+            runtime.wrap_udp_socket(socket)?,
+            runtime,
+        )
+    }
 
-    // /// Construct an endpoint with arbitrary configuration and socket
-    // pub fn new(
-    //     config: EndpointConfig,
-    //     server_config: Option<ServerConfig>,
-    //     socket: std::net::UdpSocket,
-    //     runtime: Arc<dyn Runtime>,
-    // ) -> io::Result<Self> {
-    //     // let socket_flags = unsafe{
-    //     //     libc::fcntl(Into::<SockRef>::into(&socket).as_raw_fd(), libc::F_GETFL)
-    //     // };
-    //     // debug!("socket info: {}", socket_flags);
-    //     let socket = runtime.wrap_udp_socket(socket)?;
-    //     Self::new_with_runtime(config, server_config, socket, runtime)
-    // }
+    /// Construct an endpoint with arbitrary configuration and socket
+    pub fn new(
+        config: EndpointConfig,
+        server_config: Option<ServerConfig>,
+        socket: std::net::UdpSocket,
+        runtime: Arc<dyn Runtime>,
+    ) -> io::Result<Self> {
+        // let socket_flags = unsafe{
+        //     libc::fcntl(Into::<SockRef>::into(&socket).as_raw_fd(), libc::F_GETFL)
+        // };
+        // debug!("socket info: {}", socket_flags);
+        let socket = runtime.wrap_udp_socket(socket)?;
+        Self::new_with_runtime(config, server_config, socket, runtime)
+    }
 
-    // /// Construct an endpoint with arbitrary configuration and pre-constructed abstract socket
-    // ///
-    // /// Useful when `socket` has additional state (e.g. sidechannels) attached for which shared
-    // /// ownership is needed.
-    // pub fn new_with_abstract_socket(
-    //     config: EndpointConfig,
-    //     server_config: Option<ServerConfig>,
-    //     socket: impl AsyncUdpSocket,
-    //     runtime: Arc<dyn Runtime>,
-    // ) -> io::Result<Self> {
-    //     Self::new_with_runtime(config, server_config, Box::new(socket), runtime)
-    // }
+    /// Construct an endpoint with arbitrary configuration and pre-constructed abstract socket
+    ///
+    /// Useful when `socket` has additional state (e.g. sidechannels) attached for which shared
+    /// ownership is needed.
+    pub fn new_with_abstract_socket(
+        config: EndpointConfig,
+        server_config: Option<ServerConfig>,
+        socket: impl AsyncUdpSocket,
+        runtime: Arc<dyn Runtime>,
+    ) -> io::Result<Self> {
+        Self::new_with_runtime(config, server_config, Box::new(socket), runtime)
+    }
 
-    // pub fn new_with_runtime(
-    //     config: EndpointConfig,
-    //     server_config: Option<ServerConfig>,
-    //     socket: Box<dyn AsyncUdpSocket>,
-    //     runtime: Arc<dyn Runtime>,
-    // ) -> io::Result<Self> {
-    //     let addr = socket.local_addr()?;
-    //     let allow_mtud = !socket.may_fragment();
-    //     let rc = EndpointRef::new(
-    //         socket,
-    //         proto::Endpoint::new(Arc::new(config), server_config.map(Arc::new), allow_mtud),
-    //         addr.is_ipv6(),
-    //         runtime.clone(),
-    //     );
-    //     let driver = EndpointDriver(rc.clone());
-    //     runtime.spawn(Box::pin(async {
-    //         if let Err(e) = driver.await {
-    //             tracing::error!("I/O error: {}", e);
-    //         }
-    //     }));
+    pub fn new_with_runtime(
+        config: EndpointConfig,
+        server_config: Option<ServerConfig>,
+        socket: Box<dyn AsyncUdpSocket>,
+        runtime: Arc<dyn Runtime>,
+    ) -> io::Result<Self> {
+        let addr = socket.local_addr()?;
+        let allow_mtud = !socket.may_fragment();
+        let rc = EndpointRef::new(
+            None,
+            socket,
+            proto::Endpoint::new(Arc::new(config), server_config.map(Arc::new), allow_mtud),
+            addr.is_ipv6(),
+            runtime.clone(),
+        );
+        let driver = EndpointDriver(rc.clone());
+        runtime.spawn(Box::pin(async {
+            if let Err(e) = driver.await {
+                tracing::error!("I/O error: {}", e);
+            }
+        }));
 
 
-    //     Ok(Self {
-    //         inner: rc,
-    //         default_client_config: None,
-    //         runtime,
-    //     })
-    // }
+        Ok(Self {
+            inner: rc,
+            default_client_config: None,
+            runtime,
+        })
+    }
 
     pub fn new_default_test(
         proxy_tcp_addr: SocketAddr,
@@ -192,7 +193,7 @@ impl Endpoint {
         let addr = socket.local_addr()?;
         let allow_mtud = !socket.may_fragment();
         let rc = EndpointRef::new(
-            tcp_stream,
+            Some(tcp_stream),
             socket,
             proto::Endpoint::new(Arc::new(config), server_config.map(Arc::new), allow_mtud),
             addr.is_ipv6(),
@@ -499,7 +500,7 @@ pub(crate) struct State {
     outgoing_queue_contents_len: usize,
 
     // last_heartbeat: Instant
-    tcp_stream: TcpStream
+    tcp_stream: Option<TcpStream>
 }
 
 #[derive(Debug)]
@@ -821,7 +822,7 @@ pub(crate) struct EndpointRef(Arc<EndpointInner>);
 
 impl EndpointRef {
     pub(crate) fn new(
-        tcp_stream: TcpStream,
+        tcp_stream: Option<TcpStream>,
         socket: Box<dyn AsyncUdpSocket>,
         inner: proto::Endpoint,
         ipv6: bool,
