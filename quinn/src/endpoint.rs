@@ -3,7 +3,7 @@ use std::{
     future::Future,
     io::{self, IoSliceMut},
     mem::MaybeUninit,
-    net::{IpAddr, Ipv4Addr, SocketAddr, SocketAddrV6},
+    net::{IpAddr, Ipv4Addr, SocketAddr, SocketAddrV6, UdpSocket},
     pin::Pin,
     str,
     sync::{Arc, Mutex},
@@ -143,11 +143,12 @@ impl Endpoint {
     }
 
     pub fn new_default_test(
-        socket: Box<dyn AsyncUdpSocket>
+        udp_socket: UdpSocket
     ) -> io::Result<Self> {
         let config = EndpointConfig::default();
         let runtime =  Arc::new(TokioRuntime);
         let server_config = None;
+        let socket = runtime.wrap_udp_socket(udp_socket)?;
 
         let addr = socket.local_addr()?;
         let allow_mtud = !socket.may_fragment();
