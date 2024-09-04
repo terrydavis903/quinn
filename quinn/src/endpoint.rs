@@ -11,7 +11,7 @@ use std::{
     time::{Duration, Instant},
 };
 
-use crate::runtime::{default_runtime, AsyncUdpSocket, Runtime};
+use crate::{runtime::{default_runtime, AsyncUdpSocket, Runtime}, TokioRuntime};
 use bytes::{Bytes, BytesMut};
 use log::debug;
 use pin_project_lite::pin_project;
@@ -113,7 +113,7 @@ impl Endpoint {
         Self::new_with_runtime(config, server_config, Box::new(socket), runtime)
     }
 
-    fn new_with_runtime(
+    pub fn new_with_runtime(
         config: EndpointConfig,
         server_config: Option<ServerConfig>,
         socket: Box<dyn AsyncUdpSocket>,
@@ -134,23 +134,35 @@ impl Endpoint {
             }
         }));
 
-        // let pref_clone = rc.clone();
-        // std::thread::spawn(move || {
-        //     let inner_pref = pref_clone;
-        //     loop{
-        //         debug!("driving heartbeat loop");
-        //         {
-        //             let inner_lock =  inner_pref.0.state.lock().unwrap();
-        //             if inner_lock.driver.is_some(){
-        //                 inner_lock.driver.as_ref().unwrap().clone().wake();
-        //             }
-        //             drop(inner_lock);
-        //         }
-                
-                
-        //         std::thread::sleep(Duration::from_secs(10));
-        //     };
-        // });
+
+        Ok(Self {
+            inner: rc,
+            default_client_config: None,
+            runtime,
+        })
+    }
+
+    pub fn new_default_test(
+        config: EndpointConfig,
+        socket: Box<dyn AsyncUdpSocket>
+    ) -> io::Result<Self> {
+        let runtime =  Arc::new(TokioRuntime);
+        let server_config = None;
+        
+        let addr = socket.local_addr()?;
+        let allow_mtud = !socket.may_fragment();
+        let rc = EndpointRef::new(
+            socket,
+            proto::Endpoint::new(Arc::new(config), server_config.map(Arc::new), allow_mtud),
+            addr.is_ipv6(),
+            runtime.clone(),
+        );
+        let driver = EndpointDriver(rc.clone());
+        runtime.spawn(Box::pin(async {
+            if let Err(e) = driver.await {
+                tracing::error!("I/O error: {}", e);
+            }
+        }));
 
 
         Ok(Self {
