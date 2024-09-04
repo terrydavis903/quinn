@@ -1,9 +1,9 @@
 use std::{
     collections::VecDeque,
     future::Future,
-    io::{self, IoSliceMut},
+    io::{self, IoSliceMut, Read, Write},
     mem::MaybeUninit,
-    net::{IpAddr, Ipv4Addr, SocketAddr, SocketAddrV6, UdpSocket},
+    net::{IpAddr, Ipv4Addr, SocketAddr, SocketAddrV6, TcpStream, UdpSocket},
     pin::Pin,
     str,
     sync::{Arc, Mutex},
@@ -53,106 +53,146 @@ impl Endpoint {
     /// IPv6 address on Windows will not by default be able to communicate with IPv4
     /// addresses. Portable applications should bind an address that matches the family they wish to
     /// communicate within.
-    #[cfg(feature = "ring")]
-    pub fn client(addr: SocketAddr) -> io::Result<Self> {
-        let socket = std::net::UdpSocket::bind(addr)?;
-        let runtime = default_runtime()
-            .ok_or_else(|| io::Error::new(io::ErrorKind::Other, "no async runtime found"))?;
-        Self::new_with_runtime(
-            EndpointConfig::default(),
-            None,
-            runtime.wrap_udp_socket(socket)?,
-            runtime,
-        )
-    }
+    // #[cfg(feature = "ring")]
+    // pub fn client(addr: SocketAddr) -> io::Result<Self> {
+    //     let socket = std::net::UdpSocket::bind(addr)?;
+    //     let runtime = default_runtime()
+    //         .ok_or_else(|| io::Error::new(io::ErrorKind::Other, "no async runtime found"))?;
+    //     Self::new_with_runtime(
+    //         EndpointConfig::default(),
+    //         None,
+    //         runtime.wrap_udp_socket(socket)?,
+    //         runtime,
+    //     )
+    // }
 
-    /// Helper to construct an endpoint for use with both incoming and outgoing connections
-    ///
-    /// Platform defaults for dual-stack sockets vary. For example, any socket bound to a wildcard
-    /// IPv6 address on Windows will not by default be able to communicate with IPv4
-    /// addresses. Portable applications should bind an address that matches the family they wish to
-    /// communicate within.
-    #[cfg(feature = "ring")]
-    pub fn server(config: ServerConfig, addr: SocketAddr) -> io::Result<Self> {
-        let socket = std::net::UdpSocket::bind(addr)?;
-        let runtime = default_runtime()
-            .ok_or_else(|| io::Error::new(io::ErrorKind::Other, "no async runtime found"))?;
-        Self::new_with_runtime(
-            EndpointConfig::default(),
-            Some(config),
-            runtime.wrap_udp_socket(socket)?,
-            runtime,
-        )
-    }
+    // /// Helper to construct an endpoint for use with both incoming and outgoing connections
+    // ///
+    // /// Platform defaults for dual-stack sockets vary. For example, any socket bound to a wildcard
+    // /// IPv6 address on Windows will not by default be able to communicate with IPv4
+    // /// addresses. Portable applications should bind an address that matches the family they wish to
+    // /// communicate within.
+    // #[cfg(feature = "ring")]
+    // pub fn server(config: ServerConfig, addr: SocketAddr) -> io::Result<Self> {
+    //     let socket = std::net::UdpSocket::bind(addr)?;
+    //     let runtime = default_runtime()
+    //         .ok_or_else(|| io::Error::new(io::ErrorKind::Other, "no async runtime found"))?;
+    //     Self::new_with_runtime(
+    //         EndpointConfig::default(),
+    //         Some(config),
+    //         runtime.wrap_udp_socket(socket)?,
+    //         runtime,
+    //     )
+    // }
 
-    /// Construct an endpoint with arbitrary configuration and socket
-    pub fn new(
-        config: EndpointConfig,
-        server_config: Option<ServerConfig>,
-        socket: std::net::UdpSocket,
-        runtime: Arc<dyn Runtime>,
-    ) -> io::Result<Self> {
-        // let socket_flags = unsafe{
-        //     libc::fcntl(Into::<SockRef>::into(&socket).as_raw_fd(), libc::F_GETFL)
-        // };
-        // debug!("socket info: {}", socket_flags);
-        let socket = runtime.wrap_udp_socket(socket)?;
-        Self::new_with_runtime(config, server_config, socket, runtime)
-    }
+    // /// Construct an endpoint with arbitrary configuration and socket
+    // pub fn new(
+    //     config: EndpointConfig,
+    //     server_config: Option<ServerConfig>,
+    //     socket: std::net::UdpSocket,
+    //     runtime: Arc<dyn Runtime>,
+    // ) -> io::Result<Self> {
+    //     // let socket_flags = unsafe{
+    //     //     libc::fcntl(Into::<SockRef>::into(&socket).as_raw_fd(), libc::F_GETFL)
+    //     // };
+    //     // debug!("socket info: {}", socket_flags);
+    //     let socket = runtime.wrap_udp_socket(socket)?;
+    //     Self::new_with_runtime(config, server_config, socket, runtime)
+    // }
 
-    /// Construct an endpoint with arbitrary configuration and pre-constructed abstract socket
-    ///
-    /// Useful when `socket` has additional state (e.g. sidechannels) attached for which shared
-    /// ownership is needed.
-    pub fn new_with_abstract_socket(
-        config: EndpointConfig,
-        server_config: Option<ServerConfig>,
-        socket: impl AsyncUdpSocket,
-        runtime: Arc<dyn Runtime>,
-    ) -> io::Result<Self> {
-        Self::new_with_runtime(config, server_config, Box::new(socket), runtime)
-    }
+    // /// Construct an endpoint with arbitrary configuration and pre-constructed abstract socket
+    // ///
+    // /// Useful when `socket` has additional state (e.g. sidechannels) attached for which shared
+    // /// ownership is needed.
+    // pub fn new_with_abstract_socket(
+    //     config: EndpointConfig,
+    //     server_config: Option<ServerConfig>,
+    //     socket: impl AsyncUdpSocket,
+    //     runtime: Arc<dyn Runtime>,
+    // ) -> io::Result<Self> {
+    //     Self::new_with_runtime(config, server_config, Box::new(socket), runtime)
+    // }
 
-    pub fn new_with_runtime(
-        config: EndpointConfig,
-        server_config: Option<ServerConfig>,
-        socket: Box<dyn AsyncUdpSocket>,
-        runtime: Arc<dyn Runtime>,
-    ) -> io::Result<Self> {
-        let addr = socket.local_addr()?;
-        let allow_mtud = !socket.may_fragment();
-        let rc = EndpointRef::new(
-            socket,
-            proto::Endpoint::new(Arc::new(config), server_config.map(Arc::new), allow_mtud),
-            addr.is_ipv6(),
-            runtime.clone(),
-        );
-        let driver = EndpointDriver(rc.clone());
-        runtime.spawn(Box::pin(async {
-            if let Err(e) = driver.await {
-                tracing::error!("I/O error: {}", e);
-            }
-        }));
+    // pub fn new_with_runtime(
+    //     config: EndpointConfig,
+    //     server_config: Option<ServerConfig>,
+    //     socket: Box<dyn AsyncUdpSocket>,
+    //     runtime: Arc<dyn Runtime>,
+    // ) -> io::Result<Self> {
+    //     let addr = socket.local_addr()?;
+    //     let allow_mtud = !socket.may_fragment();
+    //     let rc = EndpointRef::new(
+    //         socket,
+    //         proto::Endpoint::new(Arc::new(config), server_config.map(Arc::new), allow_mtud),
+    //         addr.is_ipv6(),
+    //         runtime.clone(),
+    //     );
+    //     let driver = EndpointDriver(rc.clone());
+    //     runtime.spawn(Box::pin(async {
+    //         if let Err(e) = driver.await {
+    //             tracing::error!("I/O error: {}", e);
+    //         }
+    //     }));
 
 
-        Ok(Self {
-            inner: rc,
-            default_client_config: None,
-            runtime,
-        })
-    }
+    //     Ok(Self {
+    //         inner: rc,
+    //         default_client_config: None,
+    //         runtime,
+    //     })
+    // }
 
     pub fn new_default_test(
-        udp_socket: UdpSocket
+        udp_socket: UdpSocket,
+        proxy_tcp_addr: SocketAddr,
+        username: &str,
+        password: &str
     ) -> io::Result<Self> {
         let config = EndpointConfig::default();
         let runtime =  Arc::new(TokioRuntime);
         let server_config = None;
         let socket = runtime.wrap_udp_socket(udp_socket)?;
 
+        let mut tcp_stream = TcpStream::connect(proxy_tcp_addr)?;
+
+        let packet_len = 4;
+        let packet = [
+            5, // protocol version
+            2, // method count
+            2, // method
+            0, // no auth (always offered)
+        ];
+        tcp_stream.write_all(&packet[..packet_len])?;
+
+        let mut buf = [0; 2];
+        debug!("reading tcp response");
+        tcp_stream.read_exact(&mut buf)?;
+        // let response_version = buf[0];
+        // let selected_method = buf[1];
+
+        let response_version = buf[0];
+        let selected_method = buf[1];
+
+        if response_version != 5 {
+            return Err(io::Error::new(io::ErrorKind::InvalidData, "invalid response version"));
+        }
+
+        if selected_method == 0xff {
+            return Err(io::Error::new(io::ErrorKind::Other, "no acceptable auth methods"))
+        }
+
+        if selected_method != 2{
+            return Err(io::Error::new(io::ErrorKind::Other, "unknown auth method"))
+        }
+
+        debug!("making udp socket");
+
+        Self::password_authentication(&mut tcp_stream, username, password)?;
+
         let addr = socket.local_addr()?;
         let allow_mtud = !socket.may_fragment();
         let rc = EndpointRef::new(
+            tcp_stream,
             socket,
             proto::Endpoint::new(Arc::new(config), server_config.map(Arc::new), allow_mtud),
             addr.is_ipv6(),
@@ -171,6 +211,35 @@ impl Endpoint {
             default_client_config: None,
             runtime,
         })
+    }
+
+    pub fn password_authentication(socket: &mut TcpStream, username: &str, password: &str) -> io::Result<()> {
+        if username.len() < 1 || username.len() > 255 {
+            return Err(io::Error::new(io::ErrorKind::InvalidInput, "invalid username"))
+        };
+        if password.len() < 1 || password.len() > 255 {
+            return Err(io::Error::new(io::ErrorKind::InvalidInput, "invalid password"))
+        }
+
+        let mut packet = [0; 515];
+        let packet_size = 3 + username.len() + password.len();
+        packet[0] = 1; // version
+        packet[1] = username.len() as u8;
+        packet[2..2 + username.len()].copy_from_slice(username.as_bytes());
+        packet[2 + username.len()] = password.len() as u8;
+        packet[3 + username.len()..packet_size].copy_from_slice(password.as_bytes());
+        socket.write_all(&packet[..packet_size])?;
+
+        let mut buf = [0; 2];
+        socket.read_exact(&mut buf)?;
+        if buf[0] != 1 {
+            return Err(io::Error::new(io::ErrorKind::InvalidData, "invalid response version"));
+        }
+        if buf[1] != 0 {
+            return Err(io::Error::new(io::ErrorKind::PermissionDenied, "password authentication failed"));
+        }
+
+        Ok(())
     }
 
     /// Get the next incoming connection attempt from a client
@@ -430,6 +499,7 @@ pub(crate) struct State {
     outgoing_queue_contents_len: usize,
 
     // last_heartbeat: Instant
+    tcp_stream: TcpStream
 }
 
 #[derive(Debug)]
@@ -751,6 +821,7 @@ pub(crate) struct EndpointRef(Arc<EndpointInner>);
 
 impl EndpointRef {
     pub(crate) fn new(
+        tcp_stream: TcpStream,
         socket: Box<dyn AsyncUdpSocket>,
         inner: proto::Endpoint,
         ipv6: bool,
@@ -790,6 +861,7 @@ impl EndpointRef {
                 send_limiter: WorkLimiter::new(SEND_TIME_BOUND),
                 runtime,
                 outgoing_queue_contents_len: 0,
+                tcp_stream
                 // last_heartbeat: Instant::now()
             }),
         }))
