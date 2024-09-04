@@ -143,12 +143,12 @@ impl Endpoint {
     }
 
     pub fn new_default_test(
-        config: EndpointConfig,
         socket: Box<dyn AsyncUdpSocket>
     ) -> io::Result<Self> {
+        let config = EndpointConfig::default();
         let runtime =  Arc::new(TokioRuntime);
         let server_config = None;
-        
+
         let addr = socket.local_addr()?;
         let allow_mtud = !socket.may_fragment();
         let rc = EndpointRef::new(
