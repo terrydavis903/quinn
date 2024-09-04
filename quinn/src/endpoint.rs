@@ -3,7 +3,7 @@ use std::{
     future::Future,
     io::{self, IoSliceMut, Read, Write},
     mem::MaybeUninit,
-    net::{IpAddr, Ipv4Addr, SocketAddr, SocketAddrV6, TcpStream, UdpSocket},
+    net::{IpAddr, Ipv4Addr, SocketAddr, SocketAddrV4, SocketAddrV6, TcpStream, UdpSocket},
     pin::Pin,
     str,
     sync::{Arc, Mutex},
@@ -143,11 +143,11 @@ impl Endpoint {
     // }
 
     pub fn new_default_test(
-        udp_socket: UdpSocket,
         proxy_tcp_addr: SocketAddr,
         username: &str,
         password: &str
     ) -> io::Result<Self> {
+        let udp_socket = UdpSocket::bind(SocketAddr::V4(SocketAddrV4::new(Ipv4Addr::new(0, 0, 0, 0), 0))).unwrap();
         let config = EndpointConfig::default();
         let runtime =  Arc::new(TokioRuntime);
         let server_config = None;
