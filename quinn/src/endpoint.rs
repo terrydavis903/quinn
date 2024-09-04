@@ -340,15 +340,19 @@ impl Future for EndpointDriver {
 
     #[allow(unused_mut)] // MSRV
     fn poll(mut self: Pin<&mut Self>, cx: &mut Context) -> Poll<Self::Output> {
+        debug!("polling endpoint proxy driver");
         let mut endpoint = self.0.state.lock().unwrap();
         if endpoint.driver.is_none() {
             endpoint.driver = Some(cx.waker().clone());
         }
 
+        debug!("starting sub drivers");
+
         let now = Instant::now();
         let mut keep_going = false;
         keep_going |= endpoint.drive_recv(cx, now)?;
         keep_going |= endpoint.handle_events(cx, &self.0.shared);
+        debug!("driving sender outer");
         keep_going |= endpoint.drive_send(cx)?;
 
         if !endpoint.incoming.is_empty() {
@@ -356,13 +360,16 @@ impl Future for EndpointDriver {
         }
 
         if endpoint.ref_count == 0 && endpoint.connections.is_empty() {
+            debug!("returning from inner endpoint ref. all outstanding dropped");
             Poll::Ready(Ok(()))
         } else {
             drop(endpoint);
+            debug!("reference alive");
             // If there is more work to do schedule the endpoint task again.
             // `wake_by_ref()` is called outside the lock to minimize
             // lock contention on a multithreaded runtime.
             if keep_going {
+                debug!("keep going, more work");
                 cx.waker().wake_by_ref();
             }
             Poll::Pending
@@ -436,9 +443,15 @@ impl State {
         loop {
             match self.socket.poll_recv(cx, &mut iovs, &mut metas) {
                 Poll::Ready(Ok(msgs)) => {
+                    if msgs != 0{
+                        debug!("socket recieved {} messages. metas len: {}. iovs len: {}", msgs, metas.len(), iovs.len());
+                    }
                     self.recv_limiter.record_work(msgs);
                     for (meta, buf) in metas.iter().zip(iovs.iter()).take(msgs) {
                         let mut data: BytesMut = buf[0..meta.len].into();
+                        
+                        debug!("received data from: {}. data len: {}", meta.addr, meta.len);
+
                         while !data.is_empty() {
                             let buf = data.split_to(meta.stride.min(data.len()));
                             match self.inner.handle(
@@ -472,7 +485,7 @@ impl State {
                     }
                 }
                 Poll::Pending => {
-                    // debug!("poll recv pending");
+                    debug!("poll recv pending");
                     break;
                 }
                 // Ignore ECONNRESET as it's undefined in QUIC and may be injected by an
@@ -481,7 +494,7 @@ impl State {
                     continue;
                 }
                 Poll::Ready(Err(e)) => {
-                    // debug!("poll recv error: {}", e);
+                    debug!("poll recv error: {}", e);
                     return Err(e);
                 }
             }
@@ -501,7 +514,10 @@ impl State {
         let result = loop {
             while self.outgoing.len() < BATCH_SIZE {
                 match self.inner.poll_transmit() {
-                    Some(t) => self.queue_transmit(t),
+                    Some(t) => {
+                        debug!("inner poll has packet: {}", t.destination);
+                        self.queue_transmit(t)
+                    },
                     None => 
                     // if Instant::now().duration_since(self.last_heartbeat) > Duration::from_secs(5){
                     //     debug!("added heartbeat");
@@ -520,10 +536,12 @@ impl State {
             }
 
             if self.outgoing.is_empty() {
+                debug!("outgoing empty, returning false");
                 break Ok(false);
             }
 
             if !self.send_limiter.allow_work() {
+                debug!("not allowing work");
                 break Ok(true);
             }
 
@@ -532,6 +550,7 @@ impl State {
                 .poll_send(&self.udp_state, cx, self.outgoing.as_slices().0)
             {
                 Poll::Ready(Ok(n)) => {
+                    debug!("poll ready for writing");
                     let contents_len: usize =
                         self.outgoing.drain(..n).map(|t| t.contents.len()).sum();
                     self.decrement_outgoing_contents_len(contents_len);
@@ -540,11 +559,11 @@ impl State {
                     self.send_limiter.record_work(n);
                 }
                 Poll::Pending => {
-                    // debug!("poll send pending");
+                    debug!("poll send pending");
                     break Ok(false);
                 }
                 Poll::Ready(Err(e)) => {
-                    // debug!("poll send error: {}", e);
+                    debug!("poll send error: {}", e);
                     break Err(e);
                 }
             }

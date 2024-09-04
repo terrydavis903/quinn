@@ -119,6 +119,7 @@ impl AsyncUdpSocket for UdpSocket {
         loop {
             
             ready!(io.poll_send_ready(cx))?;
+            debug!("poll sending packets: {}", transmits.len());
             if let Ok(res) = io.try_io(Interest::WRITABLE, || {
                 inner.send(io.into(), state, transmits)
             }) {
@@ -139,6 +140,9 @@ impl AsyncUdpSocket for UdpSocket {
             if let Ok(res) = self.io.try_io(Interest::READABLE, || {
                 self.inner.recv((&self.io).into(), bufs, meta)
             }) {
+                if res != 0{
+                    info!("tokio recieved: {} msgs", res);
+                }
                 return Poll::Ready(Ok(res));
             }
         }
