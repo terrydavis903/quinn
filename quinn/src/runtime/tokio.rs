@@ -51,29 +51,81 @@ struct UdpSocket {
 }
 
 impl AsyncUdpSocket for UdpSocket {
+    // fn proxy_send(
+    //     &self,
+    //     state: &udp::UdpState,
+    //     cx: &mut Context,
+    //     transmits: &[udp::Transmit]
+    // ) -> Poll<io::Result<usize>> {
+    //     let inner = &self.inner;
+    //     let io = &self.io;
+    //     loop {
+    //         // ready!(io.poll_send_ready(cx))?;
+    //         // if let Ok(res) = io.try_io(Interest::WRITABLE, || {
+    //         //     debug!("poll sending packets: {}", transmits.len());
+    //         //     inner.send_proxy(io.into(), state, transmits)
+    //         //     // inner.send(io.into(), state, &to_send)
+    //         // }) {
+    //         //     return Poll::Ready(Ok(res));
+    //         // }
+            
+    //         debug!("poll sending packets: {}", transmits.len());
+    //         if let Ok(res) = inner.send_proxy(io.into(), state, transmits){
+    //             return Poll::Ready(Ok(res));
+    //         }
+            
+    //     }
+    // }
+
+    // fn proxy_recv(
+    //     &self,
+    //     cx: &mut Context,
+    //     bufs: &mut [std::io::IoSliceMut<'_>],
+    //     meta: &mut [udp::RecvMeta]
+    // ) -> Poll<io::Result<usize>> {
+    //     loop {
+    //         // ready!(self.io.poll_recv_ready(cx))?;
+            
+    //         // let io_res = self.io.try_io(Interest::READABLE, || {
+    //         //     // self.inner.recv((&self.io).into(), bufs, meta)
+    //         // });
+    //         // debug!("tokio recieved");
+
+    //         let io_res = self.inner.recv_proxy((&self.io).into(), bufs, meta);
+            
+    //         if let Ok(res) = io_res{
+    //             if res != 0{
+    //                 info!("tokio recieved: {} msgs", res);
+    //             }
+    //             return Poll::Ready(Ok(res));
+    //         }else
+    //         if let Err(res_err) = io_res{
+    //             info!("tokio proxy rec error: {}", res_err);
+    //             return Poll::Ready(Err(res_err));
+    //         }
+
+    //         // debug!("should be unreachable: {:?}", io_res);
+    //     }
+    // }
+
     fn proxy_send(
         &self,
         state: &udp::UdpState,
         cx: &mut Context,
-        transmits: &[udp::Transmit]
+        transmits: &[udp::Transmit],
     ) -> Poll<io::Result<usize>> {
         let inner = &self.inner;
         let io = &self.io;
         loop {
-            // ready!(io.poll_send_ready(cx))?;
-            // if let Ok(res) = io.try_io(Interest::WRITABLE, || {
-            //     debug!("poll sending packets: {}", transmits.len());
-            //     inner.send_proxy(io.into(), state, transmits)
-            //     // inner.send(io.into(), state, &to_send)
-            // }) {
-            //     return Poll::Ready(Ok(res));
-            // }
             
+            ready!(io.poll_send_ready(cx))?;
             debug!("poll sending packets: {}", transmits.len());
-            if let Ok(res) = inner.send_proxy(io.into(), state, transmits){
+
+            if let Ok(res) = io.try_io(Interest::WRITABLE, || {
+                inner.send(io.into(), state, transmits)
+            }) {
                 return Poll::Ready(Ok(res));
             }
-            
         }
     }
 
@@ -81,30 +133,19 @@ impl AsyncUdpSocket for UdpSocket {
         &self,
         cx: &mut Context,
         bufs: &mut [std::io::IoSliceMut<'_>],
-        meta: &mut [udp::RecvMeta]
+        meta: &mut [udp::RecvMeta],
     ) -> Poll<io::Result<usize>> {
         loop {
-            // ready!(self.io.poll_recv_ready(cx))?;
+            ready!(self.io.poll_recv_ready(cx))?;
             
-            // let io_res = self.io.try_io(Interest::READABLE, || {
-            //     // self.inner.recv((&self.io).into(), bufs, meta)
-            // });
-            // debug!("tokio recieved");
-
-            let io_res = self.inner.recv_proxy((&self.io).into(), bufs, meta);
-            
-            if let Ok(res) = io_res{
+            if let Ok(res) = self.io.try_io(Interest::READABLE, || {
+                self.inner.recv((&self.io).into(), bufs, meta)
+            }) {
                 if res != 0{
                     info!("tokio recieved: {} msgs", res);
                 }
                 return Poll::Ready(Ok(res));
-            }else
-            if let Err(res_err) = io_res{
-                info!("tokio proxy rec error: {}", res_err);
-                return Poll::Ready(Err(res_err));
             }
-
-            // debug!("should be unreachable: {:?}", io_res);
         }
     }
 

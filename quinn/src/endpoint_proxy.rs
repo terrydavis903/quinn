@@ -12,7 +12,7 @@ use std::{
 };
 
 use crate::{runtime::{AsyncUdpSocket, Runtime}, TokioRuntime};
-use byteorder::{BigEndian, ReadBytesExt};
+use byteorder::{BigEndian, ReadBytesExt, WriteBytesExt};
 use bytes::{Bytes, BytesMut};
 use log::debug;
 use pin_project_lite::pin_project;
@@ -105,11 +105,11 @@ impl ProxyTcpStream{
 
         let proxy_addr = proxy_addr_opt.unwrap();
         let proxy_target = SocketAddr::new(proxy_ip, proxy_addr.to_socket_addrs().unwrap().next().unwrap().port());
-        debug!("reconnecting socket");
-        unwrapped_socket.connect(proxy_target)?;
-        debug!("reconnecting socket response");
+        // debug!("reconnecting socket");
+        // unwrapped_socket.connect(proxy_target)?;
+        // debug!("reconnecting socket response");
         
-        EndpointProxy::new(unwrapped_socket, tcp_stream)
+        EndpointProxy::new(unwrapped_socket, tcp_stream, proxy_target)
     }
 
     pub async fn new_endpoint_with_auth(&self, username: &str, password: &str) -> io::Result<EndpointProxy>
@@ -180,11 +180,11 @@ impl ProxyTcpStream{
 
         let proxy_addr = proxy_addr_opt.unwrap();
         let proxy_target = SocketAddr::new(proxy_ip, proxy_addr.to_socket_addrs().unwrap().next().unwrap().port());
-        debug!("reconnecting socket");
-        unwrapped_socket.connect(proxy_target)?;
-        debug!("reconnecting socket response");
+        // debug!("reconnecting socket");
+        // unwrapped_socket.connect(proxy_target)?;
+        // debug!("reconnecting socket response");
         
-        EndpointProxy::new(unwrapped_socket, tcp_stream)
+        EndpointProxy::new(unwrapped_socket, tcp_stream, proxy_target)
     }
 
     pub fn password_authentication(socket: &mut TcpStream, username: &str, password: &str) -> io::Result<()> {
@@ -230,7 +230,6 @@ pub struct EndpointProxy {
     pub inner: EndpointProxyRef,
     pub default_client_config: Option<ClientConfig>,
     pub runtime: Arc<dyn Runtime>,
-    pub local_udp_socket_addr: SocketAddr,
 
     // pub tcp_stream: TcpStream
 }
@@ -238,23 +237,12 @@ pub struct EndpointProxy {
 impl EndpointProxy {
 
     pub fn new(
-        // config: EndpointConfig,
-        // server_config: Option<ServerConfig>,
-        // proxy_addr: String,
         unwrapped_socket: UdpSocket,
-        // socket: Box<dyn AsyncUdpSocket>,
-        // proxy_udp_socket_addr: SocketAddr,
-        // runtime: Arc<dyn Runtime>,
-        tcp_stream: TcpStream
+        tcp_stream: TcpStream,
+        proxy_target: SocketAddr
     ) -> io::Result<Self> {
         let runtime = Arc::new(TokioRuntime);
-        // let config = EndpointConfig::default();
-        // let server_config = None;
-
-        // let mut unwrapped_socket = UdpSocket::bind(SocketAddr::V4(SocketAddrV4::new(Ipv4Addr::new(0, 0, 0, 0), 0))).unwrap();
-        // unwrapped_socket.set_nonblocking(true).unwrap();
         let binded_addr = unwrapped_socket.local_addr().unwrap();
-        let local_addr_with_port = SocketAddr::V4(SocketAddrV4::new(Ipv4Addr::new(0, 0, 0, 0), binded_addr.port()));
         
 
         let wrapped_socket = runtime.wrap_udp_socket(unwrapped_socket)?;
@@ -263,11 +251,12 @@ impl EndpointProxy {
         let allow_mtud = !wrapped_socket.may_fragment();
         let rc = EndpointProxyRef::new(
             tcp_stream,
+            proxy_target,
             wrapped_socket,
             proto::Endpoint::new(Arc::new(EndpointConfig::default()), None, allow_mtud),
             // proto::Endpoint::new(Arc::new(config), server_config.map(Arc::new), allow_mtud),
             binded_addr.is_ipv6(),
-            runtime.clone()
+            runtime.clone(),
         );
         debug!("spawning endpoint proxy");
         let driver = EndpointProxyDriver(rc.clone());
@@ -284,7 +273,7 @@ impl EndpointProxy {
             inner: rc,
             default_client_config: None,
             runtime,
-            local_udp_socket_addr: local_addr_with_port,
+            // proxy_target,
             // stream: Arc::new(dg.stream)
         })
     }
@@ -551,7 +540,8 @@ pub struct ProxyState {
 
     pub last_heartbeat: Instant,
 
-    pub tcp_stream: TcpStream
+    pub tcp_stream: TcpStream,
+    pub proxy_target: SocketAddr
 }
 
 #[derive(Debug)]
@@ -586,20 +576,22 @@ impl ProxyState {
                     self.recv_limiter.record_work(msgs);
                     for (meta, buf) in metas.iter().zip(iovs.iter()).take(msgs) {
                         // debug!("received data: {:?}", buf);
-                        let mut data: BytesMut = buf[0..meta.len].into();
-                        // let mut data: BytesMut = buf[10..meta.len].into();
-                        // let header_buf = &mut &buf[4..10];
+                        // let mut data: BytesMut = buf[0..meta.len].into();
 
-                        // let ip = Ipv4Addr::from(header_buf.read_u32::<BigEndian>()?);
-                        // let port = header_buf.read_u16::<BigEndian>()?;
-                        // let addr = SocketAddr::V4(SocketAddrV4::new(ip, port));
-                        // let meta = RecvMeta{
-                        //     addr,
-                        //     len: meta.len - 10,
-                        //     stride: meta.len - 10,
-                        //     ecn: None,
-                        //     dst_ip: None,
-                        // };
+                        
+                        let mut data: BytesMut = buf[10..meta.len].into();
+                        let header_buf = &mut &buf[4..10];
+
+                        let ip = Ipv4Addr::from(header_buf.read_u32::<BigEndian>()?);
+                        let port = header_buf.read_u16::<BigEndian>()?;
+                        let addr = SocketAddr::V4(SocketAddrV4::new(ip, port));
+                        let meta = RecvMeta{
+                            addr,
+                            len: meta.len - 10,
+                            stride: meta.len - 10,
+                            ecn: None,
+                            dst_ip: None,
+                        };
 
                         debug!("received data from: {}. data len: {}", meta.addr, meta.len);
 
@@ -706,9 +698,33 @@ impl ProxyState {
                 break Ok(true);
             }
 
+            let transmit_packets: Vec<udp::Transmit> = self.outgoing.as_mut_slices().0.iter_mut().map(|tx| {
+                let mut tx_clone = tx.clone();
+                let mut header = [0; 10];
+                // first two bytes are reserved at 0
+                // third byte is the fragment id at 0
+
+                let mut fwd_hdr: &mut [u8] = &mut header[3..];
+
+                match self.proxy_target {
+                    SocketAddr::V4(v4_addr) => {
+                        fwd_hdr.write_u8(1).unwrap();
+                        fwd_hdr.write_u32::<BigEndian>((*v4_addr.ip()).into()).unwrap();
+                        fwd_hdr.write_u16::<BigEndian>(v4_addr.port()).unwrap();
+                    },
+                    _ => {
+                        debug!("non v4 addr: {}", self.proxy_target);
+                    }
+                };
+                
+                tx_clone.contents = [header.as_slice(), &tx.contents].concat().into();
+                tx_clone
+                
+            }).collect();
+
             match self
                 .socket
-                .proxy_send(&self.udp_state, cx, self.outgoing.as_slices().0)
+                .proxy_send(&self.udp_state, cx, &transmit_packets)
             {
                 Poll::Ready(Ok(n)) => {
                     debug!("poll ready for writing");
@@ -908,6 +924,7 @@ pub struct EndpointProxyRef(pub Arc<EndpointProxyInner>);
 impl EndpointProxyRef {
     pub fn new(
         tcp_stream: TcpStream,
+        proxy_target: SocketAddr,
         socket: Box<dyn AsyncUdpSocket>,
         inner: proto::Endpoint,
         ipv6: bool,
@@ -948,7 +965,8 @@ impl EndpointProxyRef {
                 send_limiter: WorkLimiter::new(SEND_TIME_BOUND),
                 runtime,
                 outgoing_queue_contents_len: 0,
-                last_heartbeat: Instant::now()
+                last_heartbeat: Instant::now(),
+                proxy_target
             }),
         }))
     }

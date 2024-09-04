@@ -1,14 +1,13 @@
 use std::{
     collections::VecDeque,
     future::Future,
-    io::{self, IoSliceMut, Read, Write},
+    io::{self, IoSliceMut},
     mem::MaybeUninit,
-    net::{IpAddr, Ipv4Addr, SocketAddr, SocketAddrV4, SocketAddrV6, TcpStream, UdpSocket},
+    net::{SocketAddr, SocketAddrV6, UdpSocket},
     pin::Pin,
-    str,
     sync::{Arc, Mutex},
     task::{Context, Poll, Waker},
-    time::{Duration, Instant},
+    time::Instant,
 };
 
 use crate::{runtime::{default_runtime, AsyncUdpSocket, Runtime}, TokioRuntime};
@@ -122,7 +121,6 @@ impl Endpoint {
         let addr = socket.local_addr()?;
         let allow_mtud = !socket.may_fragment();
         let rc = EndpointRef::new(
-            None,
             socket,
             proto::Endpoint::new(Arc::new(config), server_config.map(Arc::new), allow_mtud),
             addr.is_ipv6(),
@@ -141,106 +139,6 @@ impl Endpoint {
             default_client_config: None,
             runtime,
         })
-    }
-
-    pub fn new_default_test(
-        proxy_tcp_addr: SocketAddr,
-        username: &str,
-        password: &str
-    ) -> io::Result<Self> {
-        let udp_socket = UdpSocket::bind(SocketAddr::V4(SocketAddrV4::new(Ipv4Addr::new(0, 0, 0, 0), 0))).unwrap();
-        let config = EndpointConfig::default();
-        let runtime =  Arc::new(TokioRuntime);
-        let server_config = None;
-        let socket = runtime.wrap_udp_socket(udp_socket)?;
-
-        let mut tcp_stream = TcpStream::connect(proxy_tcp_addr)?;
-
-        let packet_len = 4;
-        let packet = [
-            5, // protocol version
-            2, // method count
-            2, // method
-            0, // no auth (always offered)
-        ];
-        tcp_stream.write_all(&packet[..packet_len])?;
-
-        let mut buf = [0; 2];
-        debug!("reading tcp response");
-        tcp_stream.read_exact(&mut buf)?;
-        // let response_version = buf[0];
-        // let selected_method = buf[1];
-
-        let response_version = buf[0];
-        let selected_method = buf[1];
-
-        if response_version != 5 {
-            return Err(io::Error::new(io::ErrorKind::InvalidData, "invalid response version"));
-        }
-
-        if selected_method == 0xff {
-            return Err(io::Error::new(io::ErrorKind::Other, "no acceptable auth methods"))
-        }
-
-        if selected_method != 2{
-            return Err(io::Error::new(io::ErrorKind::Other, "unknown auth method"))
-        }
-
-        debug!("making udp socket");
-
-        Self::password_authentication(&mut tcp_stream, username, password)?;
-
-        let addr = socket.local_addr()?;
-        let allow_mtud = !socket.may_fragment();
-        let rc = EndpointRef::new(
-            Some(tcp_stream),
-            socket,
-            proto::Endpoint::new(Arc::new(config), server_config.map(Arc::new), allow_mtud),
-            addr.is_ipv6(),
-            runtime.clone(),
-        );
-        let driver = EndpointDriver(rc.clone());
-        runtime.spawn(Box::pin(async {
-            if let Err(e) = driver.await {
-                tracing::error!("I/O error: {}", e);
-            }
-        }));
-
-
-        Ok(Self {
-            inner: rc,
-            default_client_config: None,
-            runtime,
-        })
-    }
-
-    pub fn password_authentication(socket: &mut TcpStream, username: &str, password: &str) -> io::Result<()> {
-        if username.len() < 1 || username.len() > 255 {
-            return Err(io::Error::new(io::ErrorKind::InvalidInput, "invalid username"))
-        };
-        if password.len() < 1 || password.len() > 255 {
-            return Err(io::Error::new(io::ErrorKind::InvalidInput, "invalid password"))
-        }
-
-        let mut packet = [0; 515];
-        let packet_size = 3 + username.len() + password.len();
-        packet[0] = 1; // version
-        packet[1] = username.len() as u8;
-        packet[2..2 + username.len()].copy_from_slice(username.as_bytes());
-        packet[2 + username.len()] = password.len() as u8;
-        packet[3 + username.len()..packet_size].copy_from_slice(password.as_bytes());
-        socket.write_all(&packet[..packet_size])?;
-
-        let mut buf = [0; 2];
-        socket.read_exact(&mut buf)?;
-        if buf[0] != 1 {
-            return Err(io::Error::new(io::ErrorKind::InvalidData, "invalid response version"));
-        }
-        if buf[1] != 0 {
-            return Err(io::Error::new(io::ErrorKind::PermissionDenied, "password authentication failed"));
-        }
-
-        Ok(())
     }
 
     /// Get the next incoming connection attempt from a client
@@ -423,13 +321,13 @@ impl Future for EndpointDriver {
 
     #[allow(unused_mut)] // MSRV
     fn poll(mut self: Pin<&mut Self>, cx: &mut Context) -> Poll<Self::Output> {
-        debug!("polling endpoint proxy driver");
+        // debug!("polling endpoint proxy driver");
         let mut endpoint = self.0.state.lock().unwrap();
         if endpoint.driver.is_none() {
             endpoint.driver = Some(cx.waker().clone());
         }
 
-        debug!("starting sub drivers");
+        // debug!("starting sub drivers");
 
         let now = Instant::now();
         let mut keep_going = false;
@@ -443,16 +341,16 @@ impl Future for EndpointDriver {
         }
 
         if endpoint.ref_count == 0 && endpoint.connections.is_empty() {
-            debug!("returning from inner endpoint ref. all outstanding dropped");
+            // debug!("returning from inner endpoint ref. all outstanding dropped");
             Poll::Ready(Ok(()))
         } else {
             drop(endpoint);
-            debug!("reference alive");
+            // debug!("reference alive");
             // If there is more work to do schedule the endpoint task again.
             // `wake_by_ref()` is called outside the lock to minimize
             // lock contention on a multithreaded runtime.
             if keep_going {
-                debug!("keep going, more work");
+                // debug!("keep going, more work");
                 cx.waker().wake_by_ref();
             }
             Poll::Pending
@@ -500,7 +398,6 @@ pub(crate) struct State {
     outgoing_queue_contents_len: usize,
 
     // last_heartbeat: Instant
-    tcp_stream: Option<TcpStream>
 }
 
 #[derive(Debug)]
@@ -527,14 +424,14 @@ impl State {
         loop {
             match self.socket.poll_recv(cx, &mut iovs, &mut metas) {
                 Poll::Ready(Ok(msgs)) => {
-                    if msgs != 0{
-                        debug!("socket recieved {} messages. metas len: {}. iovs len: {}", msgs, metas.len(), iovs.len());
-                    }
+                    // if msgs != 0{
+                    //     debug!("socket recieved {} messages. metas len: {}. iovs len: {}", msgs, metas.len(), iovs.len());
+                    // }
                     self.recv_limiter.record_work(msgs);
                     for (meta, buf) in metas.iter().zip(iovs.iter()).take(msgs) {
                         let mut data: BytesMut = buf[0..meta.len].into();
                         
-                        debug!("received data from: {}. data len: {}", meta.addr, meta.len);
+                        // debug!("received data from: {}. data len: {}", meta.addr, meta.len);
 
                         while !data.is_empty() {
                             let buf = data.split_to(meta.stride.min(data.len()));
@@ -569,7 +466,7 @@ impl State {
                     }
                 }
                 Poll::Pending => {
-                    debug!("poll recv pending");
+                    // debug!("poll recv pending");
                     break;
                 }
                 // Ignore ECONNRESET as it's undefined in QUIC and may be injected by an
@@ -578,7 +475,7 @@ impl State {
                     continue;
                 }
                 Poll::Ready(Err(e)) => {
-                    debug!("poll recv error: {}", e);
+                    // debug!("poll recv error: {}", e);
                     return Err(e);
                 }
             }
@@ -599,7 +496,7 @@ impl State {
             while self.outgoing.len() < BATCH_SIZE {
                 match self.inner.poll_transmit() {
                     Some(t) => {
-                        debug!("inner poll has packet: {}", t.destination);
+                        // debug!("inner poll has packet: {}", t.destination);
                         self.queue_transmit(t)
                     },
                     None => 
@@ -620,12 +517,12 @@ impl State {
             }
 
             if self.outgoing.is_empty() {
-                debug!("outgoing empty, returning false");
+                // debug!("outgoing empty, returning false");
                 break Ok(false);
             }
 
             if !self.send_limiter.allow_work() {
-                debug!("not allowing work");
+                // debug!("not allowing work");
                 break Ok(true);
             }
 
@@ -634,7 +531,7 @@ impl State {
                 .poll_send(&self.udp_state, cx, self.outgoing.as_slices().0)
             {
                 Poll::Ready(Ok(n)) => {
-                    debug!("poll ready for writing");
+                    // debug!("poll ready for writing");
                     let contents_len: usize =
                         self.outgoing.drain(..n).map(|t| t.contents.len()).sum();
                     self.decrement_outgoing_contents_len(contents_len);
@@ -643,11 +540,11 @@ impl State {
                     self.send_limiter.record_work(n);
                 }
                 Poll::Pending => {
-                    debug!("poll send pending");
+                    // debug!("poll send pending");
                     break Ok(false);
                 }
                 Poll::Ready(Err(e)) => {
-                    debug!("poll send error: {}", e);
+                    // debug!("poll send error: {}", e);
                     break Err(e);
                 }
             }
@@ -822,7 +719,6 @@ pub(crate) struct EndpointRef(Arc<EndpointInner>);
 
 impl EndpointRef {
     pub(crate) fn new(
-        tcp_stream: Option<TcpStream>,
         socket: Box<dyn AsyncUdpSocket>,
         inner: proto::Endpoint,
         ipv6: bool,
@@ -861,8 +757,7 @@ impl EndpointRef {
                 recv_limiter: WorkLimiter::new(RECV_TIME_BOUND),
                 send_limiter: WorkLimiter::new(SEND_TIME_BOUND),
                 runtime,
-                outgoing_queue_contents_len: 0,
-                tcp_stream
+                outgoing_queue_contents_len: 0
                 // last_heartbeat: Instant::now()
             }),
         }))
