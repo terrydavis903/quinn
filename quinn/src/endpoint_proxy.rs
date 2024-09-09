@@ -278,6 +278,14 @@ impl EndpointProxy {
         })
     }
 
+    pub fn heartbeat(&mut self) -> io::Result<()>{
+        if let Some(waker) = self.inner.0.state.lock().unwrap().driver.take(){
+            waker.wake();
+        };
+
+        Ok(())
+    }
+
     pub fn reconnect_socket_to_proxy(&self, proxy_addr: SocketAddr) -> io::Result<()>  {
         self.inner.0.state.lock().unwrap().reconnect(proxy_addr)
     }
