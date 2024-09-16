@@ -36,9 +36,9 @@ use crate::{
 /// May be cloned to obtain another handle to the same endpoint.
 #[derive(Debug, Clone)]
 pub struct Endpoint {
-    pub(crate) inner: EndpointRef,
-    pub(crate) default_client_config: Option<ClientConfig>,
-    runtime: Arc<dyn Runtime>,
+    pub inner: EndpointRef,
+    pub default_client_config: Option<ClientConfig>,
+    pub runtime: Arc<dyn Runtime>,
 }
 
 impl Endpoint {
@@ -314,7 +314,7 @@ impl Endpoint {
 /// an I/O error occurs.
 #[must_use = "endpoint drivers must be spawned for I/O to occur"]
 #[derive(Debug)]
-pub(crate) struct EndpointDriver(pub(crate) EndpointRef);
+pub struct EndpointDriver(pub EndpointRef);
 
 impl Future for EndpointDriver {
     type Output = Result<(), io::Error>;
@@ -372,8 +372,8 @@ impl Drop for EndpointDriver {
 
 #[derive(Debug)]
 pub(crate) struct EndpointInner {
-    pub(crate) state: Mutex<State>,
-    pub(crate) shared: Shared,
+    pub state: Mutex<State>,
+    pub shared: Shared,
 }
 
 #[derive(Debug)]
