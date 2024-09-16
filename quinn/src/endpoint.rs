@@ -715,7 +715,7 @@ impl<'a> Future for Accept<'a> {
 }
 
 #[derive(Debug)]
-pub(crate) struct EndpointRef(Arc<EndpointInner>);
+pub struct EndpointRef(pub Arc<EndpointInner>);
 
 impl EndpointRef {
     pub(crate) fn new(
