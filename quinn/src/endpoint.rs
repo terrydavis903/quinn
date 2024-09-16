@@ -371,7 +371,7 @@ impl Drop for EndpointDriver {
 }
 
 #[derive(Debug)]
-pub(crate) struct EndpointInner {
+pub struct EndpointInner {
     pub state: Mutex<State>,
     pub shared: Shared,
 }
