@@ -1623,6 +1623,7 @@ impl Connection {
             SpaceId::Initial | SpaceId::Handshake => Duration::new(0, 0),
             SpaceId::Data => self.max_ack_delay(),
         };
+        debug!("path pto base: {} ms | max ack delay: {} ms", self.path.rtt.pto_base().as_millis(), max_ack_delay.as_millis());
         self.path.rtt.pto_base() + max_ack_delay
     }
 
@@ -1676,7 +1677,9 @@ impl Connection {
             self.timers.stop(Timer::Idle);
             return;
         }
-        let dt = cmp::max(timeout, 3 * self.pto(space));
+        let mut dt = cmp::max(timeout, 3 * self.pto(space));
+        debug!("reset max duration: {} ms. overriding to timeout: {} ms", dt.as_millis(), timeout.as_millis());
+        dt = timeout;
         self.timers.set(Timer::Idle, now + dt);
     }
 
@@ -3018,6 +3021,7 @@ impl Connection {
     fn set_close_timer(&mut self, now: Instant) {
         self.timers
             .set(Timer::Close, now + 3 * self.pto(self.highest_space));
+        // .set(Timer::Close, now + 3 * self.pto(self.highest_space));
     }
 
     /// Handle transport parameters received from the peer
