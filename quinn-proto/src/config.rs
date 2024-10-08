@@ -25,31 +25,31 @@ use crate::{
 /// performance at lower bandwidths and latencies. The default configuration is tuned for a 100Mbps
 /// link with a 100ms round trip time.
 pub struct TransportConfig {
-    pub(crate) max_concurrent_bidi_streams: VarInt,
-    pub(crate) max_concurrent_uni_streams: VarInt,
-    pub(crate) max_idle_timeout: Option<VarInt>,
-    pub(crate) stream_receive_window: VarInt,
-    pub(crate) receive_window: VarInt,
-    pub(crate) send_window: u64,
+    pub max_concurrent_bidi_streams: VarInt,
+    pub max_concurrent_uni_streams: VarInt,
+    pub max_idle_timeout: Option<VarInt>,
+    pub stream_receive_window: VarInt,
+    pub receive_window: VarInt,
+    pub send_window: u64,
 
-    pub(crate) max_tlps: u32,
-    pub(crate) packet_threshold: u32,
-    pub(crate) time_threshold: f32,
-    pub(crate) initial_rtt: Duration,
-    pub(crate) initial_mtu: u16,
-    pub(crate) min_mtu: u16,
-    pub(crate) mtu_discovery_config: Option<MtuDiscoveryConfig>,
+    pub max_tlps: u32,
+    pub packet_threshold: u32,
+    pub time_threshold: f32,
+    pub initial_rtt: Duration,
+    pub initial_mtu: u16,
+    pub min_mtu: u16,
+    pub mtu_discovery_config: Option<MtuDiscoveryConfig>,
 
-    pub(crate) persistent_congestion_threshold: u32,
-    pub(crate) keep_alive_interval: Option<Duration>,
-    pub(crate) crypto_buffer_size: usize,
-    pub(crate) allow_spin: bool,
-    pub(crate) datagram_receive_buffer_size: Option<usize>,
-    pub(crate) datagram_send_buffer_size: usize,
+    pub persistent_congestion_threshold: u32,
+    pub keep_alive_interval: Option<Duration>,
+    pub crypto_buffer_size: usize,
+    pub allow_spin: bool,
+    pub datagram_receive_buffer_size: Option<usize>,
+    pub datagram_send_buffer_size: usize,
 
-    pub(crate) congestion_controller_factory: Box<dyn congestion::ControllerFactory + Send + Sync>,
+    pub congestion_controller_factory: Box<dyn congestion::ControllerFactory + Send + Sync>,
 
-    pub(crate) enable_segmentation_offload: bool,
+    pub enable_segmentation_offload: bool,
 }
 
 impl TransportConfig {
@@ -171,7 +171,7 @@ impl TransportConfig {
         self
     }
 
-    pub(crate) fn get_initial_mtu(&self) -> u16 {
+    pub fn get_initial_mtu(&self) -> u16 {
         self.initial_mtu.max(self.min_mtu)
     }
 
@@ -442,9 +442,9 @@ impl fmt::Debug for TransportConfig {
 /// independently in order to discover the path's MTU.
 #[derive(Clone, Debug)]
 pub struct MtuDiscoveryConfig {
-    pub(crate) interval: Duration,
-    pub(crate) upper_bound: u16,
-    pub(crate) black_hole_cooldown: Duration,
+    pub interval: Duration,
+    pub upper_bound: u16,
+    pub black_hole_cooldown: Duration,
 }
 
 impl MtuDiscoveryConfig {
@@ -496,15 +496,15 @@ impl Default for MtuDiscoveryConfig {
 /// Default values should be suitable for most internet applications.
 #[derive(Clone)]
 pub struct EndpointConfig {
-    pub(crate) reset_key: Arc<dyn HmacKey>,
-    pub(crate) max_udp_payload_size: VarInt,
+    pub reset_key: Arc<dyn HmacKey>,
+    pub max_udp_payload_size: VarInt,
     /// CID generator factory
     ///
     /// Create a cid generator for local cid in Endpoint struct
-    pub(crate) connection_id_generator_factory:
+    pub connection_id_generator_factory:
         Arc<dyn Fn() -> Box<dyn ConnectionIdGenerator> + Send + Sync>,
-    pub(crate) supported_versions: Vec<u32>,
-    pub(crate) grease_quic_bit: bool,
+    pub supported_versions: Vec<u32>,
+    pub grease_quic_bit: bool,
 }
 
 impl EndpointConfig {
@@ -632,23 +632,23 @@ pub struct ServerConfig {
     pub crypto: Arc<dyn crypto::ServerConfig>,
 
     /// Used to generate one-time AEAD keys to protect handshake tokens
-    pub(crate) token_key: Arc<dyn HandshakeTokenKey>,
+    pub token_key: Arc<dyn HandshakeTokenKey>,
 
     /// Whether to require clients to prove ownership of an address before committing resources.
     ///
     /// Introduces an additional round-trip to the handshake to make denial of service attacks more difficult.
-    pub(crate) use_retry: bool,
+    pub use_retry: bool,
     /// Microseconds after a stateless retry token was issued for which it's considered valid.
-    pub(crate) retry_token_lifetime: Duration,
+    pub retry_token_lifetime: Duration,
 
     /// Maximum number of concurrent connections
-    pub(crate) concurrent_connections: u32,
+    pub concurrent_connections: u32,
 
     /// Whether to allow clients to migrate to new addresses
     ///
     /// Improves behavior for clients that move between different internet connections or suffer NAT
     /// rebinding. Enabled by default.
-    pub(crate) migration: bool,
+    pub migration: bool,
 }
 
 impl ServerConfig {
@@ -766,13 +766,13 @@ impl fmt::Debug for ServerConfig {
 #[non_exhaustive]
 pub struct ClientConfig {
     /// Transport configuration to use
-    pub(crate) transport: Arc<TransportConfig>,
+    pub transport: Arc<TransportConfig>,
 
     /// Cryptographic configuration to use
-    pub(crate) crypto: Arc<dyn crypto::ClientConfig>,
+    pub crypto: Arc<dyn crypto::ClientConfig>,
 
     /// QUIC protocol version to use
-    pub(crate) version: u32,
+    pub version: u32,
 }
 
 impl ClientConfig {
@@ -780,6 +780,15 @@ impl ClientConfig {
     pub fn new(crypto: Arc<dyn crypto::ClientConfig>) -> Self {
         Self {
             transport: Default::default(),
+            crypto,
+            version: 1,
+        }
+    }
+
+    /// Create new ClientConfig with custom transport config
+    pub fn new_with_transport(crypto: Arc<dyn crypto::ClientConfig>, transport: Arc<TransportConfig>) -> Self {
+        Self {
+            transport,
             crypto,
             version: 1,
         }
